@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能金价分析平台</title>
+<link href="https://static.mastergo.com/static/ai/resource/html/googleapis/css2" rel="stylesheet">
+<script src="https://static.mastergo.com/static/ai/resource/html/tailwind/tailwind.js"></script>
+<script>tailwind.config={theme:{extend:{colors:{primary:'#FFD700',secondary:'#1E3A8A'},borderRadius:{'none':'0px','sm':'2px',DEFAULT:'4px','md':'8px','lg':'12px','xl':'16px','2xl':'20px','3xl':'24px','full':'9999px','button':'4px'}}}}</script>
+<script src="https://static.mastergo.com/static/ai/resource/html/echarts/5.5.0/echarts.min.js"></script>
+<link rel="stylesheet" href="https://static.mastergo.com/static/ai/resource/html/font-awesome/css/all.min.css">
+<style>
+body { min-height: 1024px; }
+.sidebar { width: 240px; height: 100vh; position: fixed; top: 0; left: 0; z-index: 100; }
+.main-content { margin-left: 240px; min-height: 1024px; }
+.chart-container { min-height: 400px; }
+.golden-accent { color: #FFD700; }
+.price-up { color: #EF4444; }
+.price-down { color: #10B981; }
+.skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: loading 1.5s infinite; }
+@keyframes loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.chat-bubble-user { background-color: #FFD700; border-radius: 18px 18px 4px 18px; }
+.chat-bubble-ai { background-color: #F3F4F6; border-radius: 18px 18px 18px 4px; }
+.active-menu { background-color: #FFF9EB; border-left: 4px solid #FFD700; }
+</style>
+</head>
+<body class="bg-gray-50">
+<div class="flex">
+<!-- 左侧导航栏 -->
+<div class="sidebar bg-white shadow-md border-r border-gray-200">
+<div class="p-6">
+<h1 class="text-xl font-bold text-gray-800 font-['Pacifico']">Logo</h1>
+</div>
+<nav class="mt-8">
+<div class="menu-item active-menu px-6 py-4 cursor-pointer flex items-center space-x-3 text-gray-700 hover:bg-gray-50 transition-colors duration-200">
+<i class="fas fa-home w-5 h-5 text-gray-500"></i>
+<span>首页</span>
+</div>
+<div class="menu-item px-6 py-4 cursor-pointer flex items-center space-x-3 text-gray-600 hover:bg-gray-50 transition-colors duration-200">
+<i class="fas fa-chart-line w-5 h-5 text-gray-400"></i>
+<span>历史数据</span>
+</div>
+<div class="menu-item px-6 py-4 cursor-pointer flex items-center space-x-3 text-gray-600 hover:bg-gray-50 transition-colors duration-200">
+<i class="fas fa-forward w-5 h-5 text-gray-400"></i>
+<span>金价预测</span>
+</div>
+<div class="menu-item px-6 py-4 cursor-pointer flex items-center space-x-3 text-gray-600 hover:bg-gray-50 transition-colors duration-200">
+<i class="fas fa-brain w-5 h-5 text-gray-400"></i>
+<span>归因分析</span>
+</div>
+</nav>
+</div>
+<!-- 主内容区域 -->
+<div class="main-content bg-gray-50">
+<!-- 顶部状态栏 -->
+<header class="bg-white shadow-sm py-4 px-8 flex justify-between items-center border-b border-gray-200">
+<h2 class="text-lg font-semibold text-gray-800">智能金价分析平台</h2>
+<div class="text-sm text-gray-500">数据更新于 14:30</div>
+</header>
+<!-- 首页内容 -->
+<div id="home-page" class="page-content p-8">
+<!-- Hero 区域 -->
+<div class="bg-white rounded-xl shadow-sm p-8 mb-8 relative overflow-hidden" style="background: linear-gradient(135deg, #FFF9EB 30%, #FFFFFF 70%);">
+<div class="relative z-10 flex items-center">
+<div class="flex-1 pr-8">
+<h1 class="text-3xl font-bold text-gray-900 mb-4">智能金价分析平台</h1>
+<p class="text-gray-600 text-lg mb-6">基于人工智能技术，为您提供精准的金价趋势预测与深度归因分析</p>
+<div class="flex space-x-4">
+<button class="bg-primary text-white px-6 py-3 rounded-button whitespace-nowrap hover:bg-yellow-500 transition-colors duration-200">
+开始分析
+</button>
+<button class="border border-gray-300 text-gray-700 px-6 py-3 rounded-button whitespace-nowrap hover:bg-gray-50 transition-colors duration-200">
+查看报告
+</button>
+</div>
+</div>
+<div class="w-1/2 flex justify-end">
+<img src="https://ai-public.mastergo.com/ai/img_res/1774232799474a3K9mP2xQ7vN4rT8wY.jpg" alt="金融市场抽象图" class="w-full max-w-xs object-cover rounded-lg">
+</div>
+</div>
+</div>
+<!-- 核心指标卡 -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+<div class="bg-white rounded-xl shadow-sm p-6">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-gray-600 font-medium">当前金价</h3>
+<i class="fas fa-coins w-6 h-6 text-primary"></i>
+</div>
+<div class="text-2xl font-bold text-gray-900">$1,987.50</div>
+<div class="text-green-500 text-sm mt-2">+0.8%</div>
+</div>
+<div class="bg-white rounded-xl shadow-sm p-6">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-gray-600 font-medium">AI 市场总结</h3>
+<i class="fas fa-lightbulb w-6 h-6 text-yellow-500"></i>
+</div>
+<p class="text-gray-700 text-sm">受美元走弱和避险情绪推动，金价呈现温和上涨趋势，短期内有望突破关键阻力位。</p>
+</div>
+<div class="bg-white rounded-xl shadow-sm p-6">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-gray-600 font-medium">波动率</h3>
+<i class="fas fa-wave-square w-6 h-6 text-blue-500"></i>
+</div>
+<p class="text-gray-700 text-sm">近期波动率维持在中等水平，市场情绪相对稳定，适合稳健型投资者关注。</p>
+</div>
+</div>
+<!-- 引导入口 -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-sm p-6 border border-gray-100 hover:shadow-md transition-shadow duration-200">
+<i class="fas fa-history w-12 h-12 text-primary mb-4"></i>
+<h3 class="text-lg font-semibold text-gray-900 mb-2">查看历史</h3>
+<p class="text-gray-600 text-sm mb-4">深入分析历史金价走势，发现潜在规律</p>
+<button class="text-primary text-sm font-medium hover:text-yellow-600 transition-colors duration-200">
+开始探索 →
+</button>
+</div>
+<div class="bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-sm p-6 border border-gray-100 hover:shadow-md transition-shadow duration-200">
+<i class="fas fa-forward w-12 h-12 text-primary mb-4"></i>
+<h3 class="text-lg font-semibold text-gray-900 mb-2">开始预测</h3>
+<p class="text-gray-600 text-sm mb-4">利用 AI 技术预测未来金价趋势</p>
+<button class="text-primary text-sm font-medium hover:text-yellow-600 transition-colors duration-200">
+立即预测 →
+</button>
+</div>
+<div class="bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-sm p-6 border border-gray-100 hover:shadow-md transition-shadow duration-200">
+<i class="fas fa-brain w-12 h-12 text-primary mb-4"></i>
+<h3 class="text-lg font-semibold text-gray-900 mb-2">进行归因</h3>
+<p class="text-gray-600 text-sm mb-4">了解金价变动背后的驱动因素</p>
+<button class="text-primary text-sm font-medium hover:text-yellow-600 transition-colors duration-200">
+深入分析 →
+</button>
+</div>
+</div>
+</div>
+<!-- 历史数据页面 -->
+<div id="history-page" class="page-content p-8 hidden">
+<div class="bg-white rounded-xl shadow-sm p-6 mb-8">
+<div class="flex items-center justify-between mb-6">
+<div>
+<h2 class="text-xl font-bold text-gray-900">历史金价走势</h2>
+<p class="text-gray-600 mt-1">实时跟踪黄金市场价格变化</p>
+</div>
+<div class="flex items-center space-x-4">
+<div class="text-right">
+<div class="text-2xl font-bold text-gray-900">$1,987.50</div>
+<div class="text-green-500 text-sm">+0.8% <i class="fas fa-arrow-up"></i></div>
+</div>
+</div>
+</div>
+<div class="flex items-center space-x-2 mb-6">
+<button class="time-range-btn bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-200 transition-colors duration-200">7天</button>
+<button class="time-range-btn bg-primary text-white px-4 py-2 rounded-lg text-sm hover:bg-yellow-500 transition-colors duration-200">30天</button>
+<button class="time-range-btn bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-200 transition-colors duration-200">90天</button>
+<button class="time-range-btn bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-200 transition-colors duration-200">1年</button>
+</div>
+<div id="kline-chart" class="chart-container w-full" style="height: 500px;"></div>
+</div>
+</div>
+<!-- 金价预测页面 -->
+<div id="prediction-page" class="page-content p-8 hidden">
+<div class="bg-white rounded-xl shadow-sm p-6 mb-8">
+<h2 class="text-xl font-bold text-gray-900 mb-6">金价预测分析</h2>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<div class="space-y-6">
+<div class="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-6 border border-yellow-100">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-lg font-semibold text-gray-900">明日预测方向</h3>
+<div class="text-green-500 text-2xl"><i class="fas fa-arrow-up"></i></div>
+</div>
+<div class="text-3xl font-bold text-gray-900 mb-2">上涨</div>
+<div class="flex items-center space-x-4">
+<div class="text-sm text-gray-600">置信度</div>
+<div class="flex-1 bg-gray-200 rounded-full h-2">
+<div class="bg-primary h-2 rounded-full" style="width: 65%"></div>
+</div>
+<div class="text-lg font-bold text-primary">65%</div>
+</div>
+</div>
+<div class="bg-gray-50 rounded-xl p-6">
+<h4 class="text-lg font-semibold text-gray-900 mb-4">AI 分析洞察</h4>
+<p class="text-gray-700 leading-relaxed">
+基于当前宏观经济环境和市场情绪分析，预计明日金价将呈现温和上涨态势。主要驱动因素包括美元指数走弱、地缘政治风险溢价以及避险资金流入。建议投资者关注关键阻力位$2,000的心理关口。
+</p>
+</div>
+</div>
+<div class="bg-gray-50 rounded-xl p-6">
+<h4 class="text-lg font-semibold text-gray-900 mb-4">未来趋势预测</h4>
+<div id="prediction-chart" class="chart-container w-full" style="height: 300px;"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- 归因分析页面 -->
+<div id="attribution-page" class="page-content p-8 hidden">
+<div class="bg-white rounded-xl shadow-sm p-6 mb-8">
+<h2 class="text-xl font-bold text-gray-900 mb-6">金价归因分析</h2>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<div class="space-y-6">
+<div class="bg-blue-50 rounded-xl p-6 border border-blue-100">
+<h3 class="text-lg font-semibold text-gray-900 mb-3">AI 分析报告</h3>
+<p class="text-gray-700 leading-relaxed">
+当前金价上涨主要受到以下几个因素影响：首先，美元指数持续走弱为黄金提供了有力支撑；其次，全球经济不确定性增加，避险情绪升温促使资金流向黄金等安全资产；最后，央行购金需求增加也在一定程度上推高了金价。预计这种趋势将在短期内延续。
+</p>
+</div>
+<div class="bg-gray-50 rounded-xl p-6">
+<h4 class="text-lg font-semibold text-gray-900 mb-4">影响因素权重分析</h4>
+<div id="attribution-chart" class="chart-container w-full" style="height: 250px;"></div>
+</div>
+</div>
+<div class="bg-gray-50 rounded-xl p-6 flex flex-col">
+<h4 class="text-lg font-semibold text-gray-900 mb-4">智能问答</h4>
+<div class="flex-1 bg-white rounded-lg p-4 mb-4 overflow-y-auto max-h-80">
+<div class="mb-4">
+<div class="chat-bubble-ai inline-block max-w-xs px-4 py-2 text-sm text-gray-800">您好！我是金价分析助手，您可以问我关于金价变动的任何问题。</div>
+</div>
+<div class="mb-4 text-right">
+<div class="chat-bubble-user inline-block max-w-xs px-4 py-2 text-sm text-white">黄金为什么最近上涨？</div>
+</div>
+<div>
+<div class="chat-bubble-ai inline-block max-w-xs px-4 py-2 text-sm text-gray-800">黄金价格上涨主要由于美元走弱和避险需求增加。全球经济不确定性导致投资者寻求安全资产，而美元贬值降低了持有黄金的机会成本。</div>
+</div>
+</div>
+<div class="flex space-x-2">
+<input type="text" placeholder="请输入您的问题..." class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+<button class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-yellow-500 transition-colors duration-200">
+<i class="fas fa-paper-plane w-4 h-4"></i>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+// 菜单切换功能
+document.querySelectorAll('.menu-item').forEach(item => {
+item.addEventListener('click', function() {
+// 移除所有激活状态
+document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active-menu'));
+// 添加当前激活状态
+this.classList.add('active-menu');
+// 隐藏所有页面内容
+document.querySelectorAll('.page-content').forEach(page => {
+page.classList.add('hidden');
+});
+// 显示对应页面
+const pageId = this.querySelector('span').textContent;
+if (pageId === '首页') {
+document.getElementById('home-page').classList.remove('hidden');
+} else if (pageId === '历史数据') {
+document.getElementById('history-page').classList.remove('hidden');
+} else if (pageId === '金价预测') {
+document.getElementById('prediction-page').classList.remove('hidden');
+} else if (pageId === '归因分析') {
+document.getElementById('attribution-page').classList.remove('hidden');
+}
+});
+});
+// 时间范围切换功能
+document.querySelectorAll('.time-range-btn').forEach(btn => {
+btn.addEventListener('click', function() {
+document.querySelectorAll('.time-range-btn').forEach(b => b.classList.remove('bg-primary', 'text-white'));
+this.classList.add('bg-primary', 'text-white');
+});
+});
+// 初始化 K 线图
+const klineChart = echarts.init(document.getElementById('kline-chart'));
+const klineOption = {
+animation: false,
+title: {
+show: false
+},
+tooltip: {
+trigger: 'axis',
+axisPointer: {
+type: 'cross'
+}
+},
+legend: {
+data: ['MA5', 'MA20'],
+top: '10%'
+},
+grid: {
+left: '10%',
+right: '10%',
+top: '20%',
+bottom: '15%'
+},
+xAxis: {
+type: 'category',
+data: ['12/01', '12/02', '12/03', '12/04', '12/05', '12/06', '12/07', '12/08', '12/09', '12/10', '12/11', '12/12', '12/13', '12/14', '12/15']
+},
+yAxis: {
+type: 'value',
+scale: true
+},
+series: [
+{
+name: 'K线',
+type: 'candlestick',
+data: [
+[1950, 1970, 1940, 1965],
+[1965, 1980, 1955, 1975],
+[1975, 1990, 1960, 1985],
+[1985, 1970, 1950, 1960],
+[1960, 1975, 1945, 1970],
+[1970, 1985, 1965, 1980],
+[1980, 1995, 1975, 1990],
+[1990, 1980, 1965, 1975],
+[1975, 1990, 1970, 1985],
+[1985, 2000, 1980, 1995],
+[1995, 1985, 1970, 1980],
+[1980, 1995, 1975, 1990],
+[1990, 2005, 1985, 2000],
+[2000, 1990, 1975, 1985],
+[1985, 1995, 1980, 1990]
+],
+itemStyle: {
+color: '#EF4444',
+color0: '#10B981',
+borderColor: '#EF4444',
+borderColor0: '#10B981'
+}
+},
+{
+name: 'MA5',
+type: 'line',
+data: [1955, 1965, 1975, 1970, 1965, 1975, 1985, 1980, 1980, 1990, 1985, 1985, 1990, 1985, 1985],
+smooth: true,
+lineStyle: {
+color: '#3B82F6',
+width: 1
+}
+},
+{
+name: 'MA20',
+type: 'line',
+data: [1940, 1945, 1950, 1955, 1960, 1965, 1970, 1975, 1980, 1985, 1980, 1980, 1985, 1985, 1985],
+smooth: true,
+lineStyle: {
+color: '#8B5CF6',
+width: 1
+}
+}
+]
+};
+klineChart.setOption(klineOption);
+// 初始化预测趋势图
+const predictionChart = echarts.init(document.getElementById('prediction-chart'));
+const predictionOption = {
+animation: false,
+title: {
+show: false
+},
+tooltip: {
+trigger: 'axis'
+},
+grid: {
+left: '10%',
+right: '10%',
+top: '10%',
+bottom: '15%'
+},
+xAxis: {
+type: 'category',
+data: ['今天', '明天', '后天', '第4天', '第5天']
+},
+yAxis: {
+type: 'value'
+},
+series: [
+{
+name: '历史价格',
+type: 'line',
+data: [1980, 1987.5, null, null, null],
+lineStyle: {
+color: '#6B7280',
+type: 'solid'
+},
+itemStyle: {
+color: '#6B7280'
+}
+},
+{
+name: '预测价格',
+type: 'line',
+data: [null, 1987.5, 1995, 2002, 2008],
+lineStyle: {
+color: '#FFD700',
+type: 'dashed',
+width: 2
+},
+itemStyle: {
+color: '#FFD700'
+}
+}
+]
+};
+predictionChart.setOption(predictionOption);
+// 初始化归因分析图
+const attributionChart = echarts.init(document.getElementById('attribution-chart'));
+const attributionOption = {
+animation: false,
+title: {
+show: false
+},
+grid: {
+left: '10%',
+right: '10%',
+top: '10%',
+bottom: '15%'
+},
+xAxis: {
+type: 'category',
+data: ['美元指数', '地缘政治', '央行政策', '供需关系', '通胀预期']
+},
+yAxis: {
+type: 'value'
+},
+series: [
+{
+data: [35, 25, 20, 12, 8],
+type: 'bar',
+itemStyle: {
+color: function(params) {
+const colors = ['#FFD700', '#F59E0B', '#D97706', '#FBBF24', '#FCD34D'];
+return colors[params.dataIndex];
+}
+}
+}
+]
+};
+attributionChart.setOption(attributionOption);
+// 响应式处理
+window.addEventListener('resize', function() {
+klineChart.resize();
+predictionChart.resize();
+attributionChart.resize();
+});
+// 确保页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+// 默认显示首页
+document.getElementById('home-page').classList.remove('hidden');
+});
+</script>
+</body>
+</html>

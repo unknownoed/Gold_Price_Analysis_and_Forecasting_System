@@ -1,0 +1,1643 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gold AI · 智能金价分析师</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        gold: { light: '#fef9e6', DEFAULT: '#D4AF37', deep: '#B8942E' },
+                        surface: { DEFAULT: '#f5f7fa', card: '#ffffff' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+        .chat-bubble-user { border-bottom-right-radius: 4px; }
+        .chat-bubble-ai { border-bottom-left-radius: 4px; }
+        .news-card-gold { border-left: 4px solid #D4AF37; }
+        .skeleton { background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        .fade-in { animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-surface min-h-screen font-sans antialiased" x-data="app" x-cloak>
+
+    <!-- ==================== 侧边栏 ==================== -->
+    <aside
+        class="fixed left-0 top-0 bottom-0 bg-white border-r border-gray-200 z-40 transition-all duration-300 flex flex-col shadow-sm"
+        :class="sidebarOpen ? 'w-60' : 'w-16'"
+    >
+        <!-- Logo -->
+        <div class="flex items-center h-16 px-4 border-b border-gray-100 shrink-0">
+            <i class="fas fa-coins text-xl text-gold"></i>
+            <span x-show="sidebarOpen" class="ml-3 text-lg font-bold bg-gradient-to-r from-gold to-gold-deep bg-clip-text text-transparent whitespace-nowrap transition-opacity duration-200">Gold AI</span>
+        </div>
+
+        <!-- 折叠按钮 -->
+        <button @click="sidebarOpen = !sidebarOpen"
+            class="absolute -right-3 top-20 w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center text-gray-400 hover:text-gold shadow-sm z-50"
+        >
+            <i class="fas text-xs" :class="sidebarOpen ? 'fa-chevron-left' : 'fa-chevron-right'"></i>
+        </button>
+
+        <!-- 导航项 -->
+        <nav class="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+            <template x-for="item in navItems" :key="item.id">
+                <button @click="page = item.id"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group"
+                    :class="page === item.id
+                        ? 'bg-gold-light text-gold-deep font-semibold'
+                        : 'text-gray-500 hover:bg-gray-50 hover:text-gold'"
+                >
+                    <i :class="item.icon + ' w-5 text-center'" :class="page === item.id ? 'text-gold' : 'text-gray-400 group-hover:text-gold'"></i>
+                    <span x-show="sidebarOpen" class="text-sm whitespace-nowrap transition-opacity duration-200" x-text="item.label"></span>
+                    <span x-show="!sidebarOpen" class="sr-only" x-text="item.label"></span>
+                </button>
+            </template>
+        </nav>
+
+        <!-- 底部用户信息 + 金价 -->
+        <div class="border-t border-gray-100" x-show="loggedIn">
+            <!-- 用户信息 -->
+            <div class="p-3" x-show="sidebarOpen">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="w-8 h-8 rounded-full bg-gold-light flex items-center justify-center">
+                        <i class="fas fa-user text-gold text-xs"></i>
+                    </div>
+                    <span class="text-sm font-medium text-gray-700" x-text="currentUser?.username || ''"></span>
+                </div>
+                <div class="text-xs text-gray-400 mb-1">实时金价</div>
+                <div class="flex items-baseline gap-2">
+                    <span class="text-lg font-bold text-gray-800" x-text="'$' + goldPrice"></span>
+                    <span class="text-xs font-medium" :class="goldChange >= 0 ? 'text-green-500' : 'text-red-500'" x-text="(goldChange >= 0 ? '+' : '') + goldChange + '%'"></span>
+                </div>
+                <button @click="doLogout()" class="mt-2 text-xs text-gray-400 hover:text-red-400 transition-colors">
+                    <i class="fas fa-sign-out-alt mr-1"></i>退出登录
+                </button>
+            </div>
+            <div class="p-2 flex flex-col items-center" x-show="!sidebarOpen">
+                <span class="text-xs font-bold text-gold" x-text="'$' + goldPrice"></span>
+                <button @click="doLogout()" class="mt-1 text-xs text-gray-400 hover:text-red-400" title="退出">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ==================== 主内容区 ==================== -->
+    <main class="transition-all duration-300 min-h-screen" :class="sidebarOpen ? 'ml-60' : 'ml-16'">
+
+        <!-- ====== 登录/注册 ====== -->
+        <section x-show="page === 'auth'" x-transition class="fade-in">
+            <div class="max-w-md mx-auto px-6 py-20">
+                <div class="text-center mb-8">
+                    <i class="fas fa-coins text-5xl text-gold mb-4"></i>
+                    <h1 class="text-3xl font-extrabold text-gray-800">Gold AI</h1>
+                    <p class="text-gray-400 mt-2">智能金价分析师</p>
+                </div>
+
+                <!-- Tab 切换 -->
+                <div class="flex gap-1 bg-white rounded-2xl p-1.5 border border-gray-100 shadow-sm mb-6">
+                    <button @click="authTab = 'login'; authError = ''"
+                        class="flex-1 py-2.5 rounded-xl text-sm font-medium transition"
+                        :class="authTab === 'login' ? 'bg-gold text-white shadow-sm' : 'text-gray-400 hover:text-gray-600'"
+                    >登录</button>
+                    <button @click="authTab = 'register'; authError = ''"
+                        class="flex-1 py-2.5 rounded-xl text-sm font-medium transition"
+                        :class="authTab === 'register' ? 'bg-gold text-white shadow-sm' : 'text-gray-400 hover:text-gray-600'"
+                    >注册</button>
+                </div>
+
+                <!-- 表单 -->
+                <div class="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 block mb-1">用户名</label>
+                        <input type="text" x-model="authUsername" @keyup.enter="authTab === 'login' ? doLogin() : doRegister()"
+                            placeholder="输入用户名"
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gold transition-colors">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 block mb-1">密码</label>
+                        <input type="password" x-model="authPassword" @keyup.enter="authTab === 'login' ? doLogin() : doRegister()"
+                            placeholder="输入密码"
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gold transition-colors">
+                    </div>
+
+                    <p x-show="authError" class="text-sm text-red-500 text-center" x-text="authError"></p>
+
+                    <button x-show="authTab === 'login'" @click="doLogin()"
+                        class="w-full py-2.5 bg-gold text-white rounded-xl font-semibold hover:bg-gold-deep transition-colors disabled:opacity-50"
+                        :disabled="authLoading"
+                        x-text="authLoading ? '登录中...' : '登录'"
+                    ></button>
+                    <button x-show="authTab === 'register'" @click="doRegister()"
+                        class="w-full py-2.5 bg-gold text-white rounded-xl font-semibold hover:bg-gold-deep transition-colors disabled:opacity-50"
+                        :disabled="authLoading"
+                        x-text="authLoading ? '注册中...' : '注册'"
+                    ></button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ====== 首页 ====== -->
+        <section x-show="page === 'home' && loggedIn" x-transition class="fade-in">
+            <div class="max-w-4xl mx-auto px-6 py-12">
+                <!-- Hero -->
+                <div class="text-center mb-10">
+                    <h1 class="text-4xl font-extrabold text-gray-800 mb-3">
+                        <i class="fas fa-coins text-gold mr-2"></i>Gold AI
+                    </h1>
+                    <p class="text-lg text-gray-500">智能金价分析师 — 实时数据驱动，AI 辅助决策</p>
+                </div>
+
+                <!-- 功能导航卡片 2x2 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <template x-for="card in homeCards" :key="card.id">
+                        <div @click="page = card.id"
+                            class="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
+                        >
+                            <div class="flex items-start gap-4">
+                                <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform"
+                                    :class="card.bgColor"
+                                >
+                                    <i :class="card.icon" :class="card.iconColor"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <h3 class="text-lg font-semibold text-gray-800 mb-1" x-text="card.title"></h3>
+                                    <p class="text-sm text-gray-400 leading-relaxed" x-text="card.desc"></p>
+                                </div>
+                                <i class="fas fa-chevron-right text-gray-300 group-hover:text-gold transition-colors self-center"></i>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- 底部实时快照 -->
+                <div class="mt-10 bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                    <div class="text-xs text-gray-400 mb-3 uppercase tracking-wide">实时市场快照</div>
+                    <div class="grid grid-cols-2 md:grid-cols-6 gap-4" x-data="marketSnapshot">
+                        <template x-for="m in metrics" :key="m.name">
+                            <div class="text-center">
+                                <div class="text-xs text-gray-400 mb-1" x-text="m.name"></div>
+                                <div class="text-sm font-semibold text-gray-700" x-text="m.price ?? '--'"></div>
+                                <div class="text-xs font-medium mt-0.5"
+                                    :class="(m.change ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'"
+                                    x-text="m.change != null ? ((m.change >= 0 ? '+' : '') + m.change + '%') : '--'"
+                                ></div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ====== 市场数据 ====== -->
+        <section x-show="page === 'market' && loggedIn" x-transition class="fade-in">
+            <div class="max-w-6xl mx-auto px-6 py-8">
+                <h2 class="text-xl font-bold text-gray-800 mb-6">
+                    <i class="fas fa-chart-bar text-gold mr-2"></i>市场数据
+                </h2>
+
+                <!-- 指标卡片 -->
+                <div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6" x-data="marketSnapshot">
+                    <template x-for="m in metrics" :key="m.name">
+                        <div class="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+                            <div class="text-xs text-gray-400 mb-1" x-text="m.name"></div>
+                            <div class="text-base font-bold text-gray-800" x-text="m.price ?? '--'"></div>
+                            <div class="text-xs font-medium mt-0.5" :class="(m.change ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'"
+                                x-text="m.change != null ? ((m.change >= 0 ? '+' : '') + m.change + '%') : '--'"></div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- K线图 -->
+                <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm mb-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-semibold text-gray-700">黄金期货 K 线图</h3>
+                        <div class="flex gap-1">
+                            <template x-for="p in ['5d','1mo','3mo','6mo']" :key="p">
+                                <button @click="marketPeriod = p; loadMarketChart()"
+                                    class="px-3 py-1 text-xs rounded-full transition"
+                                    :class="marketPeriod === p ? 'bg-gold text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'"
+                                    x-text="p === '5d' ? '5日' : p === '1mo' ? '1月' : p === '3mo' ? '3月' : '半年'"></button>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mb-3">
+                        <template x-for="ind in marketIndicators" :key="ind.key">
+                            <label class="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+                                <input type="checkbox" :checked="ind.show" @change="ind.show = !ind.show; loadMarketChart()" class="accent-gold">
+                                <span x-text="ind.label"></span>
+                            </label>
+                        </template>
+                    </div>
+                    <div id="market-chart" class="w-full" style="height:450px"></div>
+                </div>
+
+                <!-- AI 市场简报 -->
+                <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                    <h3 class="text-sm font-semibold text-gray-700 mb-3">
+                        <i class="fas fa-robot text-gold mr-1"></i>AI 市场简报
+                    </h3>
+                    <div x-show="marketSummaryLoading" class="skeleton h-16 rounded-lg"></div>
+                    <p x-show="!marketSummaryLoading" class="text-sm text-gray-600 leading-relaxed" x-text="marketSummary"></p>
+                    <p x-show="marketSummaryError" class="text-sm text-red-400" x-text="marketSummaryError"></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ====== 新闻数据 ====== -->
+        <section x-show="page === 'news' && loggedIn" x-transition class="fade-in">
+            <div class="max-w-6xl mx-auto px-6 py-8">
+                <h2 class="text-xl font-bold text-gray-800 mb-6">
+                    <i class="fas fa-newspaper text-gold mr-2"></i>新闻数据
+                </h2>
+
+                <!-- 搜索栏 -->
+                <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm mb-6">
+                    <div class="flex gap-3">
+                        <div class="flex-1 relative">
+                            <input type="text" x-model="newsQuery" @keyup.enter="searchNews()"
+                                placeholder="输入问题或关键词，如「美联储加息对黄金的影响」"
+                                class="w-full pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gold transition-colors"
+                            >
+                            <button @click="newsQuery = ''; searchNews()" x-show="newsQuery" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <button @click="searchNews()"
+                            class="px-5 py-2.5 bg-gold text-white rounded-xl text-sm font-semibold hover:bg-gold-deep transition-colors whitespace-nowrap"
+                            :disabled="newsSearching"
+                        >
+                            <i class="fas fa-search mr-1"></i>
+                            <span x-text="newsSearching ? '搜索中...' : '搜索'"></span>
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">支持自然语言和关键词，后端自动解析意图并融合多源搜索结果</p>
+                </div>
+
+                <div class="flex gap-6">
+                    <!-- 左侧分类筛选 -->
+                    <div class="w-48 shrink-0 hidden md:block">
+                        <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm sticky top-6">
+                            <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">分类筛选</h4>
+                            <div class="space-y-1">
+                                <button @click="newsFilter = '全部'"
+                                    class="w-full text-left px-3 py-2 rounded-lg text-sm transition"
+                                    :class="newsFilter === '全部' ? 'bg-gold-light text-gold-deep font-semibold' : 'text-gray-500 hover:bg-gray-50'"
+                                >全部</button>
+                                <template x-for="cat in newsCategories" :key="cat">
+                                    <button @click="newsFilter = cat"
+                                        class="w-full text-left px-3 py-2 rounded-lg text-sm transition flex justify-between"
+                                        :class="newsFilter === cat ? 'bg-gold-light text-gold-deep font-semibold' : 'text-gray-500 hover:bg-gray-50'"
+                                    >
+                                        <span x-text="cat"></span>
+                                        <span class="text-xs text-gray-300" x-text="newsCountByCat(cat)"></span>
+                                    </button>
+                                </template>
+                            </div>
+
+                            <!-- 来源切换 -->
+                            <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-5 mb-3">数据来源</h4>
+                            <div class="flex gap-1">
+                                <button @click="newsSource = 'jin10'"
+                                    class="flex-1 px-2 py-1.5 rounded-lg text-xs transition"
+                                    :class="newsSource === 'jin10' ? 'bg-gold-light text-gold-deep font-semibold' : 'text-gray-400 hover:bg-gray-50'"
+                                >金十</button>
+                                <button @click="newsSource = 'search'"
+                                    class="flex-1 px-2 py-1.5 rounded-lg text-xs transition"
+                                    :class="newsSource === 'search' ? 'bg-gold-light text-gold-deep font-semibold' : 'text-gray-400 hover:bg-gray-50'"
+                                >搜索</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 右侧新闻列表 -->
+                    <div class="flex-1 min-w-0">
+                        <!-- 空状态 -->
+                        <div x-show="newsSource === 'jin10' && allNews.length === 0 && !newsLoading"
+                            class="bg-white rounded-2xl p-10 border border-gray-100 shadow-sm text-center">
+                            <i class="fas fa-inbox text-4xl text-gray-200 mb-3"></i>
+                            <p class="text-gray-400">暂无新闻数据</p>
+                            <button @click="loadNews()" class="mt-3 text-sm text-gold hover:underline">点击加载</button>
+                        </div>
+
+                        <!-- Loading -->
+                        <div x-show="newsLoading" class="space-y-3">
+                            <template x-for="i in 4" :key="i">
+                                <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                                    <div class="skeleton h-3 w-24 mb-3"></div>
+                                    <div class="skeleton h-4 w-full mb-2"></div>
+                                    <div class="skeleton h-3 w-3/4"></div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- 错误状态 -->
+                        <div x-show="newsError" class="bg-white rounded-2xl p-10 border border-gray-100 shadow-sm text-center">
+                            <i class="fas fa-exclamation-circle text-4xl text-red-300 mb-3"></i>
+                            <p class="text-red-400" x-text="newsError"></p>
+                            <button @click="loadNews()" class="mt-3 text-sm text-gold hover:underline">重试</button>
+                        </div>
+
+                        <!-- Agent 摘要 -->
+                        <div x-show="agentSummary" class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-5 border border-blue-100 mb-4">
+                            <div class="flex items-center gap-2 mb-2">
+                                <i class="fas fa-robot text-blue-500"></i>
+                                <span class="text-sm font-semibold text-blue-700">AI 智能摘要</span>
+                                <span x-show="searchMode === 'agent'" class="text-xs bg-blue-100 text-blue-500 px-2 py-0.5 rounded-full">Agent</span>
+                            </div>
+                            <p class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap" x-text="agentSummary"></p>
+                            <div x-show="agentSteps.length" class="mt-3 pt-3 border-t border-blue-100">
+                                <span class="text-xs text-gray-400">搜索过程: </span>
+                                <template x-for="s in agentSteps" :key="s">
+                                    <span class="text-xs text-gray-400 mr-2" x-text="'[' + s + ']'"></span>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- 新闻列表 -->
+                        <div x-show="!newsLoading && !newsError && filteredNews.length > 0" class="space-y-3">
+                            <template x-for="(item, idx) in filteredNews" :key="idx">
+                                <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
+                                    :class="{ 'news-card-gold': item.gold_related && newsSource === 'jin10', 'border-l-red-400 bg-orange-50': item.important }"
+                                >
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <span class="text-xs text-gray-400" x-text="item.time || ''"></span>
+                                        <span x-show="item.important" class="text-xs text-red-500 font-semibold">重要</span>
+                                        <span x-show="item.score" class="text-xs bg-gold-light text-gold-deep px-2 py-0.5 rounded-full">相关度: <span x-text="item.score"></span></span>
+                                        <span x-show="item.url" class="text-xs">
+                                            <a :href="item.url" target="_blank" class="text-blue-400 hover:underline"><i class="fas fa-external-link-alt"></i> 来源</a>
+                                        </span>
+                                    </div>
+                                    <p class="text-sm text-gray-700 leading-relaxed" x-text="item.title || item.content"></p>
+                                    <div class="flex flex-wrap gap-1 mt-2" x-show="item.categories && item.categories.length">
+                                        <template x-for="c in item.categories" :key="c">
+                                            <span class="text-xs bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full" x-text="c"></span>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ====== AI 报告 ====== -->
+        <section x-show="page === 'report' && loggedIn" x-transition class="fade-in">
+            <div class="max-w-6xl mx-auto px-6 py-8">
+                <h2 class="text-xl font-bold text-gray-800 mb-6">
+                    <i class="fas fa-file-alt text-gold mr-2"></i>AI 分析报告
+                </h2>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <!-- 左侧预测仪表盘 -->
+                    <div class="lg:col-span-1 bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-sm font-semibold text-gray-700">AI 预测</h3>
+                            <button @click="loadPrediction()" class="text-xs text-gold hover:underline" :disabled="predictionLoading">
+                                <i class="fas fa-sync-alt mr-1" :class="{ 'animate-spin': predictionLoading }"></i>刷新
+                            </button>
+                        </div>
+
+                        <!-- Loading -->
+                        <div x-show="predictionLoading" class="space-y-3">
+                            <div class="skeleton h-20 rounded-lg"></div>
+                            <div class="skeleton h-4 w-3/4"></div>
+                            <div class="skeleton h-4 w-1/2"></div>
+                        </div>
+
+                        <!-- 预测内容 -->
+                        <div x-show="!predictionLoading && predictionData" class="space-y-4">
+                            <!-- 大幅涨跌指示 -->
+                            <div class="relative flex flex-col items-center py-4"
+                                :class="predictionData.prediction === 'bullish' ? 'bg-green-50 rounded-2xl' : predictionData.prediction === 'bearish' ? 'bg-red-50 rounded-2xl' : 'bg-yellow-50 rounded-2xl'">
+                                <!-- 大箭头 -->
+                                <div class="text-8xl mb-3 animate-pulse"
+                                    x-text="predictionData.prediction === 'bullish' ? '⬆️' : predictionData.prediction === 'bearish' ? '⬇️' : '↔️'"></div>
+                                <!-- 标签 -->
+                                <div class="text-2xl font-extrabold tracking-wide"
+                                    :class="predictionData.prediction === 'bullish' ? 'text-green-600' : predictionData.prediction === 'bearish' ? 'text-red-600' : 'text-yellow-600'"
+                                    x-text="predictionData.prediction === 'bullish' ? '看涨' : predictionData.prediction === 'bearish' ? '看跌' : '震荡'"></div>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-xs text-gray-400 mb-1">
+                                    <span>置信度</span>
+                                    <span x-text="(predictionData.confidence * 100).toFixed(0) + '%'"></span>
+                                </div>
+                                <div class="w-full bg-gray-100 rounded-full h-2">
+                                    <div class="h-2 rounded-full transition-all duration-500"
+                                        :class="predictionBarColor"
+                                        :style="{ width: (predictionData.confidence * 100) + '%' }"
+                                    ></div>
+                                </div>
+                            </div>
+
+                            <div class="text-center py-2 bg-gray-50 rounded-xl">
+                                <div class="text-xs text-gray-400">预测时金价</div>
+                                <div class="text-xl font-bold text-gray-800" x-text="'$' + (predictionData.predicted_price || '--')"></div>
+                            </div>
+
+                            <div x-show="predictionData.is_correct !== null && predictionData.is_correct !== undefined" class="text-center py-2 rounded-xl"
+                                :class="predictionData.is_correct === 1 ? 'bg-green-50' : 'bg-red-50'">
+                                <div class="text-xs mb-1" :class="predictionData.is_correct === 1 ? 'text-green-500' : 'text-red-500'">
+                                    <span x-text="predictionData.is_correct === 1 ? '✓ 预测正确' : '✗ 预测错误'"></span>
+                                </div>
+                                <div class="text-xs text-gray-400" x-show="predictionData.actual_price">
+                                    实际金价: $<span x-text="predictionData.actual_price"></span>
+                                </div>
+                            </div>
+
+                            <div class="text-center">
+                                <div class="text-xs text-gray-400">历史准确率</div>
+                                <div class="text-sm font-semibold text-gray-700">
+                                    <span x-text="predictionAccuracy.accuracy ? (predictionAccuracy.accuracy * 100).toFixed(0) + '%' : '--'"></span>
+                                    <span class="text-gray-400 text-xs ml-1" x-text="'(' + (predictionAccuracy.total || 0) + '次)'"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div x-show="!predictionLoading && !predictionData" class="text-center py-8">
+                            <i class="fas fa-chart-line text-4xl text-gray-200 mb-3"></i>
+                            <p class="text-gray-400 text-sm">暂无预测数据</p>
+                            <p class="text-xs text-gray-300 mt-1">生成报告后将自动更新预测</p>
+                        </div>
+
+                        <!-- 市场信号 -->
+                        <div x-show="!predictionLoading && predictionData" class="mt-4 pt-4 border-t border-gray-100">
+                            <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">市场信号</h4>
+                            <div class="space-y-2" x-data="marketSnapshot">
+                                <template x-for="sig in signals" :key="sig.name">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs text-gray-500 w-16 shrink-0" x-text="sig.name"></span>
+                                        <div class="flex-1 bg-gray-100 rounded-full h-1.5">
+                                            <div class="h-1.5 rounded-full" :class="sig.barColor" :style="{ width: sig.strength + '%' }"></div>
+                                        </div>
+                                        <span class="text-xs w-10 text-right" :class="sig.textColor" x-text="sig.label"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 右侧报告区 -->
+                    <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col" style="min-height: calc(100vh - 220px);">
+                        <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+                            <h3 class="text-sm font-semibold text-gray-700">
+                                <i class="fas fa-robot text-gold mr-1"></i>报告内容
+                            </h3>
+                            <div class="flex items-center gap-3">
+                                <button @click="toggleReportTTS()"
+                                    class="text-xs text-gray-400 hover:text-gold transition-colors"
+                                    :class="ttsSource === 'report' && ttsState !== 'idle' ? 'text-gold font-semibold' : ''"
+                                    x-text="ttsSource === 'report' && ttsState === 'playing' ? '⏸️ 暂停' : ttsSource === 'report' && ttsState === 'paused' ? '▶️ 继续' : '🔊 朗读'"></button>
+                                <button @click="reportMessages = []"
+                                    class="text-xs text-gray-400 hover:text-red-400 transition-colors">
+                                    <i class="fas fa-trash-alt mr-1"></i>清空
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 报告内容区 -->
+                        <div class="flex-1 overflow-y-auto px-5 py-4 scrollbar-thin" id="report-content" x-ref="reportContent">
+                            <div x-show="reportMessages.length === 0" class="text-center py-20">
+                                <i class="fas fa-file-alt text-5xl text-gray-200 mb-3"></i>
+                                <p class="text-gray-400 mb-2">输入分析问题，生成 AI 深度报告</p>
+                                <p class="text-xs text-gray-300">报告包含13个维度的专业分析</p>
+                            </div>
+
+                            <template x-for="(msg, idx) in reportMessages" :key="idx">
+                                <div class="mb-6 fade-in">
+                                    <!-- 用户问题 -->
+                                    <div x-show="msg.question" class="flex justify-end mb-3">
+                                        <div class="max-w-[75%] px-4 py-2.5 rounded-2xl bg-gold text-white text-sm chat-bubble-user" x-text="msg.question"></div>
+                                    </div>
+                                    <!-- AI 报告 -->
+                                    <div x-show="msg.report">
+                                        <div x-show="msg.loading" class="space-y-3 py-4">
+                                            <div class="skeleton h-4 w-full"></div>
+                                            <div class="skeleton h-4 w-5/6"></div>
+                                            <div class="skeleton h-4 w-4/6"></div>
+                                            <div class="skeleton h-4 w-full"></div>
+                                            <div class="skeleton h-4 w-3/6"></div>
+                                        </div>
+                                        <div x-show="!msg.loading" class="prose prose-sm max-w-none text-gray-700" x-html="formatReport(msg.report)"></div>
+                                        <!-- 元信息 -->
+                                        <div x-show="!msg.loading" class="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
+                                            <span class="text-xs text-gray-400" x-text="msg.time ? formatTime(msg.time) : ''"></span>
+                                            <span class="text-xs px-2 py-0.5 rounded-full"
+                                                :class="msg.prediction === 'bullish' ? 'bg-green-50 text-green-500' : msg.prediction === 'bearish' ? 'bg-red-50 text-red-500' : 'bg-yellow-50 text-yellow-500'"
+                                                x-text="msg.prediction === 'bullish' ? '📈 看涨' : msg.prediction === 'bearish' ? '📉 看跌' : '➡️ 震荡'"></span>
+                                            <span class="text-xs text-gray-400" x-text="'置信度: ' + ((msg.confidence || 0) * 100).toFixed(0) + '%'"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- 输入区 -->
+                        <div class="px-4 py-3 border-t border-gray-100 flex gap-3">
+                            <input type="text" x-model="reportInput" @keyup.enter="sendReportRequest()"
+                                placeholder="输入分析问题，如「结合当前宏观环境分析黄金未来一周走势」"
+                                class="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gold transition-colors"
+                                :disabled="reportSending"
+                            >
+                            <button @click="sendReportRequest()"
+                                class="px-5 py-2.5 bg-gold text-white rounded-xl text-sm font-semibold hover:bg-gold-deep transition-colors disabled:opacity-50 whitespace-nowrap"
+                                :disabled="reportSending || !reportInput.trim()"
+                            >
+                                <i class="fas fa-file-alt mr-1"></i>生成报告
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ====== AI 对话 ====== -->
+        <section x-show="page === 'chat' && loggedIn" x-transition class="fade-in">
+            <div class="max-w-4xl mx-auto px-6 py-8">
+                <h2 class="text-xl font-bold text-gray-800 mb-6">
+                    <i class="fas fa-comments text-gold mr-2"></i>AI 对话
+                </h2>
+
+                <!-- 对话卡片 -->
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col" style="min-height: calc(100vh - 220px);">
+                    <!-- 头部 -->
+                    <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center">
+                                <i class="fas fa-user-tie text-green-500"></i>
+                            </div>
+                            <div>
+                                <span class="text-sm font-semibold text-gray-700">金融专家</span>
+                                <span class="text-xs text-gray-400 ml-2">在线</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs text-gray-400" x-text="'上下文: ' + chatMessages.length + ' 条消息'"></span>
+                            <button @click="toggleChatTTS()"
+                                class="text-xs text-gray-400 hover:text-gold transition-colors"
+                                :class="ttsSource === 'chat' && ttsState !== 'idle' ? 'text-gold font-semibold' : ''"
+                                x-text="ttsSource === 'chat' && ttsState === 'playing' ? '⏸️ 暂停' : ttsSource === 'chat' && ttsState === 'paused' ? '▶️ 继续' : '🔊 朗读'"></button>
+                            <button @click="clearChat()"
+                                class="text-xs text-gray-400 hover:text-red-400 transition-colors">
+                                <i class="fas fa-trash-alt mr-1"></i>清空对话
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 消息列表 -->
+                    <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4 scrollbar-thin" id="chat-messages" x-ref="chatMessages">
+                        <div x-show="chatMessages.length === 0" class="text-center py-20">
+                            <i class="fas fa-comments text-5xl text-gray-200 mb-3"></i>
+                            <p class="text-gray-400 mb-4">与金融专家自由对话</p>
+                            <!-- 快捷问题建议 -->
+                            <div class="flex flex-wrap justify-center gap-2 max-w-md mx-auto">
+                                <template x-for="q in chatSuggestions" :key="q">
+                                    <button @click="chatInput = q; sendChatMessage()"
+                                        class="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-full text-xs text-gray-500 hover:border-gold hover:text-gold transition-colors"
+                                        x-text="q"></button>
+                                </template>
+                            </div>
+                        </div>
+
+                        <template x-for="(msg, idx) in chatMessages" :key="idx">
+                            <div class="flex gap-3" :class="msg.role === 'user' ? 'flex-row-reverse' : ''">
+                                <!-- 头像 -->
+                                <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                                    :class="msg.role === 'user' ? 'bg-gold-light' : 'bg-green-50'">
+                                    <i class="text-xs"
+                                        :class="msg.role === 'user' ? 'fas fa-user text-gold' : 'fas fa-user-tie text-green-500'"></i>
+                                </div>
+                                <!-- 气泡 -->
+                                <div class="max-w-[75%]">
+                                    <div class="px-4 py-2.5 rounded-2xl text-sm leading-relaxed"
+                                        :class="msg.role === 'user'
+                                            ? 'bg-gold text-white chat-bubble-user'
+                                            : 'bg-gray-100 text-gray-700 chat-bubble-ai'"
+                                    >
+                                        <div x-show="msg.loading" class="flex items-center gap-1 py-1">
+                                            <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0s"></span>
+                                            <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.1s"></span>
+                                            <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.2s"></span>
+                                        </div>
+                                        <span x-show="!msg.loading" x-text="msg.content" class="whitespace-pre-wrap"></span>
+                                    </div>
+                                    <div class="text-xs text-gray-400 mt-1 px-1" x-text="msg.time ? formatTime(msg.time) : ''"></div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- 输入区 -->
+                    <div class="px-4 py-3 border-t border-gray-100 flex gap-3">
+                        <input type="text" x-model="chatInput" @keyup.enter="sendChatMessage()"
+                            placeholder="输入你的问题，如「当前实际利率对黄金有什么影响？」"
+                            class="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gold transition-colors"
+                            :disabled="chatSending"
+                        >
+                        <button @click="sendChatMessage()"
+                            class="px-5 py-2.5 bg-gold text-white rounded-xl text-sm font-semibold hover:bg-gold-deep transition-colors disabled:opacity-50"
+                            :disabled="chatSending || !chatInput.trim()"
+                        >
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ====== 设置 ====== -->
+        <section x-show="page === 'settings' && loggedIn" x-transition class="fade-in">
+            <div class="max-w-2xl mx-auto px-6 py-8">
+                <h2 class="text-xl font-bold text-gray-800 mb-6">
+                    <i class="fas fa-cog text-gold mr-2"></i>设置
+                </h2>
+
+                <!-- Tab 切换 -->
+                <div class="flex gap-1 bg-white rounded-2xl p-1.5 border border-gray-100 shadow-sm mb-6">
+                    <button @click="settingsTab = 'profile'"
+                        class="flex-1 py-2.5 rounded-xl text-sm font-medium transition"
+                        :class="settingsTab === 'profile' ? 'bg-gold text-white shadow-sm' : 'text-gray-400 hover:text-gray-600'"
+                    >用户偏好</button>
+                    <button @click="settingsTab = 'apikeys'"
+                        class="flex-1 py-2.5 rounded-xl text-sm font-medium transition"
+                        :class="settingsTab === 'apikeys' ? 'bg-gold text-white shadow-sm' : 'text-gray-400 hover:text-gray-600'"
+                    >API 配置</button>
+                    <button @click="settingsTab = 'model'"
+                        class="flex-1 py-2.5 rounded-xl text-sm font-medium transition"
+                        :class="settingsTab === 'model' ? 'bg-gold text-white shadow-sm' : 'text-gray-400 hover:text-gray-600'"
+                    >模型参数</button>
+                </div>
+
+                <!-- Tab: 用户偏好 -->
+                <div x-show="settingsTab === 'profile'" class="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-5">
+                    <!-- 风险偏好 -->
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 block mb-2">风险偏好</label>
+                        <div class="flex gap-2">
+                            <button @click="profileForm.risk_preference = 'low'"
+                                class="flex-1 py-2 rounded-xl text-sm border transition"
+                                :class="profileForm.risk_preference === 'low' ? 'border-green-400 bg-green-50 text-green-600 font-semibold' : 'border-gray-200 text-gray-400'"
+                            >低风险</button>
+                            <button @click="profileForm.risk_preference = 'medium'"
+                                class="flex-1 py-2 rounded-xl text-sm border transition"
+                                :class="profileForm.risk_preference === 'medium' ? 'border-yellow-400 bg-yellow-50 text-yellow-600 font-semibold' : 'border-gray-200 text-gray-400'"
+                            >中风险</button>
+                            <button @click="profileForm.risk_preference = 'high'"
+                                class="flex-1 py-2 rounded-xl text-sm border transition"
+                                :class="profileForm.risk_preference === 'high' ? 'border-red-400 bg-red-50 text-red-600 font-semibold' : 'border-gray-200 text-gray-400'"
+                            >高风险</button>
+                        </div>
+                    </div>
+
+                    <!-- 市场倾向 -->
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 block mb-2">市场倾向</label>
+                        <div class="flex gap-2">
+                            <button @click="profileForm.market_bias = 'bullish'"
+                                class="flex-1 py-2 rounded-xl text-sm border transition"
+                                :class="profileForm.market_bias === 'bullish' ? 'border-green-400 bg-green-50 text-green-600 font-semibold' : 'border-gray-200 text-gray-400'"
+                            >看多</button>
+                            <button @click="profileForm.market_bias = 'neutral'"
+                                class="flex-1 py-2 rounded-xl text-sm border transition"
+                                :class="profileForm.market_bias === 'neutral' ? 'border-yellow-400 bg-yellow-50 text-yellow-600 font-semibold' : 'border-gray-200 text-gray-400'"
+                            >中性</button>
+                            <button @click="profileForm.market_bias = 'bearish'"
+                                class="flex-1 py-2 rounded-xl text-sm border transition"
+                                :class="profileForm.market_bias === 'bearish' ? 'border-red-400 bg-red-50 text-red-600 font-semibold' : 'border-gray-200 text-gray-400'"
+                            >看空</button>
+                        </div>
+                    </div>
+
+                    <!-- 关注关键词 -->
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 block mb-2">关注关键词</label>
+                        <div class="flex flex-wrap gap-2 mb-2">
+                            <template x-for="(kw, idx) in profileForm.keywords" :key="idx">
+                                <span class="inline-flex items-center gap-1 bg-gold-light text-gold-deep text-xs px-2.5 py-1 rounded-full">
+                                    <span x-text="kw"></span>
+                                    <button @click="profileForm.keywords.splice(idx, 1)" class="hover:text-red-400">&times;</button>
+                                </span>
+                            </template>
+                        </div>
+                        <div class="flex gap-2">
+                            <input type="text" x-model="newKeyword" @keyup.enter="addKeyword()"
+                                placeholder="输入关键词后回车"
+                                class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gold"
+                            >
+                            <button @click="addKeyword()" class="px-4 py-2 bg-gray-100 text-gray-500 rounded-lg text-sm hover:bg-gray-200">添加</button>
+                        </div>
+                    </div>
+
+                    <button @click="saveProfile()"
+                        class="w-full py-2.5 bg-gold text-white rounded-xl font-semibold hover:bg-gold-deep transition-colors disabled:opacity-50"
+                        :disabled="profileSaving"
+                        x-text="profileSaving ? '保存中...' : '保存偏好'"
+                    ></button>
+                    <p x-show="profileSaved" class="text-xs text-green-500 text-center">保存成功</p>
+                </div>
+
+                <!-- Tab: API 配置 -->
+                <div x-show="settingsTab === 'apikeys'" class="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 block mb-1">Kimi API Key</label>
+                        <input :type="showKimiKey ? 'text' : 'password'" x-model="apikeyForm.kimi_api_key"
+                            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gold">
+                        <button @click="showKimiKey = !showKimiKey" class="text-xs text-gray-400 mt-1 hover:underline">显示/隐藏</button>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 block mb-1">Tavily API Key</label>
+                        <input :type="showTavilyKey ? 'text' : 'password'" x-model="apikeyForm.tavily_api_key"
+                            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gold">
+                        <button @click="showTavilyKey = !showTavilyKey" class="text-xs text-gray-400 mt-1 hover:underline">显示/隐藏</button>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 block mb-1">SerpAPI Key</label>
+                        <input :type="showSerpKey ? 'text' : 'password'" x-model="apikeyForm.serpapi_key"
+                            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gold">
+                        <button @click="showSerpKey = !showSerpKey" class="text-xs text-gray-400 mt-1 hover:underline">显示/隐藏</button>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 block mb-1">DeepSeek API Key <span class="text-gold text-xs">(Agent 搜索)</span></label>
+                        <input :type="showDSKey ? 'text' : 'password'" x-model="apikeyForm.deepseek_api_key"
+                            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gold"
+                            placeholder="sk-... 填入后启用 AI 智能搜索">
+                        <button @click="showDSKey = !showDSKey" class="text-xs text-gray-400 mt-1 hover:underline">显示/隐藏</button>
+                    </div>
+                    <button @click="saveApiKeys()"
+                        class="w-full py-2.5 bg-gold text-white rounded-xl font-semibold hover:bg-gold-deep transition-colors"
+                        :disabled="apikeySaving"
+                        x-text="apikeySaving ? '保存中...' : '保存 API Key'"
+                    ></button>
+                    <p x-show="apikeySaved" class="text-xs text-green-500 text-center">保存成功</p>
+                </div>
+
+                <!-- Tab: 模型参数 -->
+                <div x-show="settingsTab === 'model'" class="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-5">
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span class="text-gray-600">学习率</span>
+                            <span class="text-gold-deep font-semibold" x-text="modelForm.learning_rate"></span>
+                        </div>
+                        <input type="range" min="0.01" max="0.20" step="0.01" x-model="modelForm.learning_rate"
+                            class="w-full accent-gold">
+                        <div class="flex justify-between text-xs text-gray-300"><span>0.01</span><span>0.20</span></div>
+                    </div>
+
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 block mb-2">指标权重</label>
+                        <template x-for="(val, key) in modelForm.weights" :key="key">
+                            <div class="flex items-center gap-3 mb-3">
+                                <span class="text-xs text-gray-500 w-20 shrink-0" x-text="weightLabels[key]"></span>
+                                <input type="range" min="0.01" max="1.0" step="0.01" x-model="modelForm.weights[key]"
+                                    class="flex-1 accent-gold">
+                                <span class="text-xs text-gray-600 w-10 text-right" x-text="parseFloat(val).toFixed(2)"></span>
+                            </div>
+                        </template>
+                    </div>
+
+                    <button @click="normalizeWeights(); saveModelParams()"
+                        class="w-full py-2.5 bg-gold text-white rounded-xl font-semibold hover:bg-gold-deep transition-colors"
+                        :disabled="modelSaving"
+                        x-text="modelSaving ? '保存中...' : '保存模型参数'"
+                    ></button>
+                    <p x-show="modelSaved" class="text-xs text-green-500 text-center">保存成功</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ==================== Toast 通知 ==================== -->
+    <div x-show="toast.show" x-transition
+        class="fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium text-white"
+        :class="toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'"
+        x-text="toast.message"
+        x-init="setTimeout(() => toast.show = false, 3000)"
+    ></div>
+
+    <!-- ==================== Alpine.js 数据层 ==================== -->
+    <script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('app', () => ({
+            // 全局状态
+            page: 'home',
+            sidebarOpen: true,
+            goldPrice: '--',
+            goldChange: 0,
+            toast: { show: false, message: '', type: 'success' },
+
+            // 认证状态
+            loggedIn: false,
+            currentUser: null,
+            authTab: 'login',
+            authUsername: '',
+            authPassword: '',
+            authError: '',
+            authLoading: false,
+
+            // 导航
+            navItems: [
+                { id: 'home', label: '首页', icon: 'fas fa-home' },
+                { id: 'market', label: '市场数据', icon: 'fas fa-chart-bar' },
+                { id: 'news', label: '新闻数据', icon: 'fas fa-newspaper' },
+                { id: 'report', label: 'AI 报告', icon: 'fas fa-file-alt' },
+                { id: 'chat', label: 'AI 对话', icon: 'fas fa-comments' },
+                { id: 'settings', label: '设置', icon: 'fas fa-cog' },
+            ],
+
+            // 首页卡片
+            homeCards: [
+                { id: 'market', title: '市场数据', desc: '实时K线、美元指数、美债收益率一图纵览', icon: 'fas fa-chart-line', iconColor: 'text-blue-500', bgColor: 'bg-blue-50' },
+                { id: 'news', title: '新闻数据', desc: '金十快讯 + 个性化搜索，分类筛选', icon: 'fas fa-newspaper', iconColor: 'text-purple-500', bgColor: 'bg-purple-50' },
+                { id: 'report', title: 'AI 报告', desc: 'AI 深度分析报告，13维度全面解读', icon: 'fas fa-file-alt', iconColor: 'text-orange-500', bgColor: 'bg-orange-50' },
+                { id: 'chat', title: 'AI 对话', desc: '与金融专家自由对话，学习黄金知识', icon: 'fas fa-comments', iconColor: 'text-green-500', bgColor: 'bg-green-50' },
+                { id: 'settings', title: '设置', desc: '偏好、API、模型参数', icon: 'fas fa-sliders-h', iconColor: 'text-gray-500', bgColor: 'bg-gray-100' },
+            ],
+
+            // ===== 市场页 =====
+            marketPeriod: '1mo',
+            marketIndicators: [
+                { key: 'usd_index', label: '美元指数', show: true },
+                { key: 'bond_yield', label: '美债收益率', show: false },
+                { key: 'oil', label: '原油', show: false },
+                { key: 'sp500', label: '标普500', show: false },
+                { key: 'vix', label: 'VIX恐慌', show: false },
+            ],
+            marketSummary: '',
+            marketSummaryLoading: false,
+            marketSummaryError: '',
+
+            // ===== 新闻页 =====
+            allNews: [],
+            searchNewsResults: [],
+            newsLoading: false,
+            newsSearching: false,
+            newsError: '',
+            newsFilter: '全部',
+            newsQuery: '',
+            newsSource: 'jin10',
+            agentSummary: '',
+            agentSources: [],
+            agentSteps: [],
+            searchMode: 'pipeline',
+            newsCategories: [],
+
+            get filteredNews() {
+                const pool = this.newsSource === 'jin10' ? this.allNews : this.searchNewsResults;
+                if (this.newsFilter === '全部') return pool;
+                return pool.filter(n => (n.categories || []).includes(this.newsFilter));
+            },
+
+            newsCountByCat(cat) {
+                const pool = this.newsSource === 'jin10' ? this.allNews : this.searchNewsResults;
+                return pool.filter(n => (n.categories || []).includes(cat)).length;
+            },
+
+            // ===== 报告页 =====
+            reportMessages: [],
+            reportInput: '',
+            reportSending: false,
+
+            // ===== 对话页 =====
+            chatMessages: [
+                { role: 'assistant', content: '你好！我是你的AI金融专家，专攻宏观经济、货币政策与黄金交易。你可以问我市场走势、检验自己的观点和策略，我会像同行一样与你交流。', time: new Date().toISOString() }
+            ],
+            chatInput: '',
+            chatSending: false,
+            chatSuggestions: [
+                '当前实际利率对黄金有什么影响？',
+                '如何判断黄金是否处于超买状态？',
+                '美联储降息预期如何影响金价？',
+                '美元指数和黄金的负相关关系可靠吗？',
+                'VIX恐慌指数飙升是否该买入黄金？',
+                '央行持续购金说明什么问题？',
+            ],
+
+            // ===== 预测（报告共用） =====
+            predictionData: null,
+            predictionAccuracy: { accuracy: 0, total: 0 },
+            predictionLoading: false,
+
+            // TTS 状态: 'idle' | 'playing' | 'paused'
+            ttsState: 'idle',
+            ttsAudio: null,
+            ttsSource: '',  // 'report' or 'chat'
+
+            get predictionEmoji() {
+                if (!this.predictionData) return '❓';
+                return this.predictionData.prediction === 'bullish' ? '📈' : this.predictionData.prediction === 'bearish' ? '📉' : '➡️';
+            },
+            get predictionLabel() {
+                if (!this.predictionData) return '暂无';
+                return this.predictionData.prediction === 'bullish' ? '看涨' : this.predictionData.prediction === 'bearish' ? '看跌' : '震荡';
+            },
+            get predictionColor() {
+                if (!this.predictionData) return 'text-gray-400';
+                return this.predictionData.prediction === 'bullish' ? 'text-green-500' : this.predictionData.prediction === 'bearish' ? 'text-red-500' : 'text-yellow-500';
+            },
+            get predictionBarColor() {
+                if (!this.predictionData) return 'bg-gray-300';
+                return this.predictionData.prediction === 'bullish' ? 'bg-green-500' : this.predictionData.prediction === 'bearish' ? 'bg-red-500' : 'bg-yellow-500';
+            },
+
+            // ===== 设置页 =====
+            settingsTab: 'profile',
+            profileForm: { risk_preference: 'medium', market_bias: 'neutral', keywords: [] },
+            profileSaving: false, profileSaved: false,
+            newKeyword: '',
+            apikeyForm: { kimi_api_key: '', tavily_api_key: '', serpapi_key: '', deepseek_api_key: '' },
+            apikeySaving: false, apikeySaved: false,
+            showKimiKey: false, showTavilyKey: false, showSerpKey: false, showDSKey: false,
+            modelForm: { learning_rate: 0.05, weights: { usd_index: 0.25, bond_yield: 0.25, oil: 0.1, vix: 0.15, news: 0.25 } },
+            modelSaving: false, modelSaved: false,
+            weightLabels: { usd_index: '美元指数', bond_yield: '美债收益率', oil: '原油', vix: 'VIX恐慌', news: '新闻' },
+
+            // ===== 初始化 =====
+            async init() {
+                // 先检查登录状态
+                await this.checkAuth();
+
+                this.$watch('page', v => {
+                    if (!this.loggedIn && v !== 'auth') { this.page = 'auth'; return; }
+                    if (v === 'market') { this.$nextTick(() => this.loadMarketChart()); this.loadMarketSummary(); }
+                    if (v === 'news') { if (this.newsCategories.length === 0) this.loadCategories(); if (this.allNews.length === 0) this.loadNews(); }
+                    if (v === 'report') { this.loadPrediction(); this.$nextTick(() => this.scrollReportBottom()); }
+                    if (v === 'chat') { this.loadChatHistory(); this.$nextTick(() => this.scrollChatBottom()); }
+                    if (v === 'settings') this.loadSettings();
+                    if (v === 'home') this.loadHomeSnapshot();
+                });
+                // 首屏加载
+                if (this.loggedIn) {
+                    this.loadGoldTicker();
+                    this.loadCategories();
+                    setInterval(() => this.loadGoldTicker(), 60000);
+                }
+            },
+
+            // ===== 认证 =====
+            async checkAuth() {
+                try {
+                    const res = await fetch('/api/auth/me');
+                    const data = await res.json();
+                    this.loggedIn = data.logged_in;
+                    this.currentUser = data.logged_in ? data : null;
+                    if (!this.loggedIn) this.page = 'auth';
+                } catch (e) {
+                    this.loggedIn = false;
+                    this.page = 'auth';
+                }
+            },
+
+            async doLogin() {
+                this.authError = '';
+                this.authLoading = true;
+                try {
+                    const res = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: this.authUsername, password: this.authPassword })
+                    });
+                    const data = await res.json();
+                    if (data.error) { this.authError = data.error; return; }
+                    this.loggedIn = true;
+                    this.currentUser = data;
+                    this.authPassword = '';
+                    this.page = 'home';
+                    this.loadGoldTicker();
+                    this.loadCategories();
+                    setInterval(() => this.loadGoldTicker(), 60000);
+                } catch (e) {
+                    this.authError = '网络错误，请重试';
+                }
+                this.authLoading = false;
+            },
+
+            async doRegister() {
+                this.authError = '';
+                this.authLoading = true;
+                try {
+                    const res = await fetch('/api/auth/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: this.authUsername, password: this.authPassword })
+                    });
+                    const data = await res.json();
+                    if (data.error) { this.authError = data.error; return; }
+                    this.loggedIn = true;
+                    this.currentUser = data;
+                    this.authPassword = '';
+                    this.page = 'home';
+                    this.loadGoldTicker();
+                    this.loadCategories();
+                    setInterval(() => this.loadGoldTicker(), 60000);
+                } catch (e) {
+                    this.authError = '网络错误，请重试';
+                }
+                this.authLoading = false;
+            },
+
+            async doLogout() {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                this.loggedIn = false;
+                this.currentUser = null;
+                this.page = 'auth';
+            },
+
+            // ===== Toast =====
+            showToast(msg, type = 'success') {
+                this.toast = { show: true, message: msg, type };
+                setTimeout(() => this.toast.show = false, 3000);
+            },
+
+            // ===== 金价 Ticker =====
+            async loadGoldTicker() {
+                try {
+                    const res = await fetch('/api/market_snapshot');
+                    const data = await res.json();
+                    if (!data.error) {
+                        this.goldPrice = data.gold?.price ?? '--';
+                        this.goldChange = data.gold?.change_pct ?? 0;
+                        window.dispatchEvent(new CustomEvent('snapshot-updated', { detail: data }));
+                    }
+                } catch (e) { /* silent */ }
+            },
+
+            // ===== 首页快照 =====
+            async loadHomeSnapshot() {
+                try {
+                    const res = await fetch('/api/market_snapshot');
+                    const data = await res.json();
+                    if (!data.error) window.dispatchEvent(new CustomEvent('snapshot-updated', { detail: data }));
+                } catch (e) { /* silent */ }
+            },
+
+            // ===== 市场页 =====
+            async loadMarketChart() {
+                await this.$nextTick();
+                const dom = document.getElementById('market-chart');
+                if (!dom) return;
+                // Dispose old chart if exists
+                if (dom._echart) { dom._echart.dispose(); dom._echart = null; }
+
+                const chart = echarts.init(dom);
+                dom._echart = chart;
+
+                const periodMap = { '5d': '5d', '1mo': '1mo', '3mo': '3mo', '6mo': '6mo' };
+                try {
+                    const res = await fetch(`/api/market_data/full?period=${periodMap[this.marketPeriod] || '1mo'}`);
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error);
+
+                    const series = [];
+                    // K线
+                    if (data.gold_k && data.gold_k.length) {
+                        series.push({
+                            name: '黄金K线', type: 'candlestick',
+                            data: data.gold_k,
+                            itemStyle: { color: '#ef4444', color0: '#10b981', borderColor: '#ef4444', borderColor0: '#10b981' }
+                        });
+                    }
+                    // 辅助指标
+                    const indicatorDefs = [
+                        { key: 'usd_index', name: '美元指数', color: '#3b82f6' },
+                        { key: 'bond_yield', name: '美债收益率', color: '#f59e0b' },
+                        { key: 'oil', name: '原油', color: '#8b5cf6' },
+                        { key: 'sp500', name: '标普500', color: '#10b981' },
+                        { key: 'vix', name: 'VIX恐慌', color: '#ef4444' },
+                    ];
+                    indicatorDefs.forEach(ind => {
+                        const show = this.marketIndicators.find(i => i.key === ind.key)?.show;
+                        if (show && data[ind.key] && data[ind.key].length) {
+                            series.push({
+                                name: ind.name, type: 'line', data: data[ind.key],
+                                smooth: true, symbol: 'none',
+                                lineStyle: { color: ind.color, width: 1.5 },
+                                yAxisIndex: 1
+                            });
+                        }
+                    });
+
+                    chart.setOption({
+                        tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+                        legend: { data: series.map(s => s.name), bottom: 0, left: 'center', textStyle: { fontSize: 11 } },
+                        grid: { left: '8%', right: '8%', top: '5%', bottom: '10%' },
+                        xAxis: { type: 'category', data: data.dates, axisLabel: { rotate: 30, fontSize: 10 } },
+                        yAxis: [
+                            { type: 'value', name: '金价 (USD)', scale: true, axisLabel: { formatter: '${value}' } },
+                            { type: 'value', scale: true, axisLabel: { fontSize: 10 } }
+                        ],
+                        series
+                    });
+                } catch (e) {
+                    chart.setOption({
+                        title: { text: '数据加载失败: ' + e.message, left: 'center', top: 'center', textStyle: { color: '#ef4444', fontSize: 14 } }
+                    });
+                }
+                window.addEventListener('resize', () => chart.resize());
+            },
+
+            async loadMarketSummary() {
+                this.marketSummaryLoading = true;
+                this.marketSummaryError = '';
+                try {
+                    const res = await fetch('/api/market_summary');
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error);
+                    this.marketSummary = data.summary;
+                } catch (e) {
+                    this.marketSummaryError = '简报生成失败: ' + e.message;
+                }
+                this.marketSummaryLoading = false;
+            },
+
+            // ===== 新闻页 =====
+            async loadCategories() {
+                try {
+                    const res = await fetch('/api/news/categories');
+                    const data = await res.json();
+                    if (!data.error && Array.isArray(data)) this.newsCategories = data;
+                } catch (e) { /* keep defaults */ }
+            },
+
+            async loadNews() {
+                this.newsLoading = true;
+                this.newsError = '';
+                try {
+                    const res = await fetch('/api/news');
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error);
+                    this.allNews = Array.isArray(data) ? data : [];
+                } catch (e) {
+                    this.newsError = '加载失败: ' + e.message;
+                }
+                this.newsLoading = false;
+            },
+
+            async searchNews() {
+                const q = this.newsQuery.trim();
+                if (!q) { this.searchNewsResults = []; this.newsSource = 'jin10'; return; }
+                this.newsSearching = true;
+                try {
+                    const res = await fetch('/api/news/search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query: q })
+                    });
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error);
+                    this.searchNewsResults = (data.news || []).map(n => ({
+                        title: n.title, content: n.content, url: n.url, score: n.score,
+                        categories: n.categories || [], gold_related: n.gold_related, important: n.important, time: n.time || ''
+                    }));
+                    this.agentSummary = data.summary || '';
+                    this.agentSources = data.sources || [];
+                    this.agentSteps = data.search_steps || [];
+                    this.searchMode = data.mode || 'pipeline';
+                    this.newsSource = 'search';
+                    this.newsFilter = '全部';
+                } catch (e) {
+                    this.showToast('搜索失败: ' + e.message, 'error');
+                }
+                this.newsSearching = false;
+            },
+
+            // ===== 报告页 =====
+            async loadPrediction() {
+                this.predictionLoading = true;
+                try {
+                    const res = await fetch('/api/prediction/latest');
+                    const data = await res.json();
+                    this.predictionData = data.prediction ? data : null;
+                    this.predictionAccuracy = data.accuracy || { accuracy: 0, total: 0 };
+                } catch (e) { /* silent */ }
+                this.predictionLoading = false;
+            },
+
+            async sendReportRequest() {
+                const msg = this.reportInput.trim();
+                if (!msg || this.reportSending) return;
+                this.reportInput = '';
+                this.reportSending = true;
+
+                const now = new Date().toISOString();
+                const entry = { question: msg, report: '', prediction: '', confidence: 0, time: now, loading: true };
+                this.reportMessages.push(entry);
+                const idx = this.reportMessages.length - 1;
+                this.$nextTick(() => this.scrollReportBottom());
+
+                try {
+                    const res = await fetch('/api/report', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: msg })
+                    });
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error);
+                    this.reportMessages[idx] = {
+                        question: msg,
+                        report: data.reply || '',
+                        prediction: data.prediction || 'neutral',
+                        confidence: data.confidence || 0.5,
+                        time: data.timestamp || now,
+                        loading: false
+                    };
+                    this.loadPrediction();
+                } catch (e) {
+                    this.reportMessages[idx] = {
+                        question: msg,
+                        report: '报告生成失败: ' + e.message,
+                        prediction: 'neutral',
+                        confidence: 0,
+                        time: now,
+                        loading: false
+                    };
+                }
+                this.reportSending = false;
+                this.$nextTick(() => this.scrollReportBottom());
+            },
+
+            scrollReportBottom() {
+                const el = this.$refs.reportContent;
+                if (el) el.scrollTop = el.scrollHeight;
+            },
+
+            formatReport(text) {
+                if (!text) return '';
+                let html = text
+                    // Bold
+                    .replace(/\*\*(.+?)\*\*/g, '<strong class="text-gray-800">$1</strong>')
+                    // Inline code
+                    .replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 py-0.5 rounded text-xs text-red-500">$1</code>')
+                    // Horizontal rules
+                    .replace(/\n---+\n/g, '<hr class="my-4 border-gray-200">')
+                    // Headings
+                    .replace(/^#### (.+)$/gm, '<h5 class="text-sm font-semibold text-gray-700 mt-4 mb-2">$1</h5>')
+                    .replace(/^### (.+)$/gm, '<h4 class="text-base font-semibold text-gray-700 mt-5 mb-2">$1</h4>')
+                    .replace(/^## (.+)$/gm, '<h3 class="text-lg font-bold text-gray-800 mt-6 mb-3 border-b border-gray-100 pb-1">$1</h3>')
+                    .replace(/^# (.+)$/gm, '<h2 class="text-xl font-bold text-gray-800 mt-6 mb-3">$1</h2>')
+                    // Unordered lists
+                    .replace(/^- (.+)$/gm, '<li class="ml-4 text-sm">$1</li>')
+                    .replace(/(<li[^>]*>.*<\/li>\n?)+/g, '<ul class="my-2 space-y-1">$&</ul>')
+                    // Block quotes
+                    .replace(/^&gt; (.+)$/gm, '<blockquote class="border-l-4 border-gold pl-3 my-3 text-gray-500 italic text-sm">$1</blockquote>')
+                    // Paragraphs
+                    .replace(/\n\n/g, '</p><p class="my-2 text-sm leading-relaxed">');
+                html = '<p class="my-2 text-sm leading-relaxed">' + html + '</p>';
+                // Clean up empty paragraphs
+                html = html.replace(/<p class="[^"]*"><\/p>/g, '');
+                return html;
+            },
+
+            // ===== TTS 播报（报告） =====
+            _getReportText() {
+                for (let i = this.reportMessages.length - 1; i >= 0; i--) {
+                    if (this.reportMessages[i].report && !this.reportMessages[i].loading) {
+                        return this.reportMessages[i].report;
+                    }
+                }
+                return null;
+            },
+
+            async toggleReportTTS() {
+                // 如果正在播放或暂停的是对话，先停止
+                if (this.ttsSource === 'chat') this._stopTTS();
+                // 如果当前正在播放报告，暂停/继续
+                if (this.ttsSource === 'report') {
+                    if (this.ttsState === 'playing') { this._pauseTTS(); return; }
+                    if (this.ttsState === 'paused') { this._resumeTTS(); return; }
+                }
+                // 否则，开始新的播放
+                const text = this._getReportText();
+                if (!text) { this.showToast('暂无报告可朗读', 'error'); return; }
+                this.ttsSource = 'report';
+                await this._startTTS(text);
+            },
+
+            // ===== TTS 播报（对话） =====
+            _getChatText() {
+                for (let i = this.chatMessages.length - 1; i >= 0; i--) {
+                    if (this.chatMessages[i].role === 'assistant' && !this.chatMessages[i].loading) {
+                        return this.chatMessages[i].content;
+                    }
+                }
+                return null;
+            },
+
+            async toggleChatTTS() {
+                if (this.ttsSource === 'report') this._stopTTS();
+                if (this.ttsSource === 'chat') {
+                    if (this.ttsState === 'playing') { this._pauseTTS(); return; }
+                    if (this.ttsState === 'paused') { this._resumeTTS(); return; }
+                }
+                const text = this._getChatText();
+                if (!text) { this.showToast('暂无 AI 对话可朗读', 'error'); return; }
+                this.ttsSource = 'chat';
+                await this._startTTS(text);
+            },
+
+            // ===== TTS 核心 =====
+            async _startTTS(text) {
+                this.ttsState = 'playing';
+                try {
+                    const res = await fetch('/api/tts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text })
+                    });
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.error || 'TTS 请求失败');
+                    }
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    this.ttsAudio = new Audio(url);
+                    this.ttsAudio.onended = () => {
+                        URL.revokeObjectURL(url);
+                        this.ttsState = 'idle';
+                        this.ttsAudio = null;
+                        this.ttsSource = '';
+                    };
+                    this.ttsAudio.onerror = () => {
+                        URL.revokeObjectURL(url);
+                        this.ttsState = 'idle';
+                        this.ttsAudio = null;
+                        this.ttsSource = '';
+                        this.showToast('语音播放失败', 'error');
+                    };
+                    await this.ttsAudio.play();
+                } catch (e) {
+                    this.showToast('语音生成失败: ' + e.message, 'error');
+                    this.ttsState = 'idle';
+                    this.ttsAudio = null;
+                    this.ttsSource = '';
+                }
+            },
+
+            _pauseTTS() {
+                if (this.ttsAudio) {
+                    this.ttsAudio.pause();
+                    this.ttsState = 'paused';
+                }
+            },
+
+            _resumeTTS() {
+                if (this.ttsAudio) {
+                    this.ttsAudio.play();
+                    this.ttsState = 'playing';
+                }
+            },
+
+            _stopTTS() {
+                if (this.ttsAudio) {
+                    this.ttsAudio.pause();
+                    this.ttsAudio.currentTime = 0;
+                }
+                this.ttsState = 'idle';
+                this.ttsAudio = null;
+                this.ttsSource = '';
+            },
+
+            // ===== 对话页 =====
+            async loadChatHistory() {
+                try {
+                    const res = await fetch('/api/chat/history');
+                    const data = await res.json();
+                    if (!data.error && data.messages && data.messages.length > 0) {
+                        this.chatMessages = data.messages.map(m => ({
+                            role: m.role,
+                            content: m.content,
+                            time: m.created_at || new Date().toISOString()
+                        }));
+                    }
+                } catch (e) { /* keep default greeting */ }
+            },
+
+            async sendChatMessage() {
+                const msg = this.chatInput.trim();
+                if (!msg || this.chatSending) return;
+                this.chatInput = '';
+                this.chatSending = true;
+
+                const now = new Date().toISOString();
+                this.chatMessages.push({ role: 'user', content: msg, time: now });
+                const loadingIdx = this.chatMessages.length;
+                this.chatMessages.push({ role: 'assistant', content: '', time: now, loading: true });
+                this.$nextTick(() => this.scrollChatBottom());
+
+                try {
+                    const res = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: msg })
+                    });
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error);
+                    this.chatMessages[loadingIdx] = {
+                        role: 'assistant',
+                        content: data.reply || '(无回复)',
+                        time: data.timestamp || now
+                    };
+                } catch (e) {
+                    this.chatMessages[loadingIdx] = {
+                        role: 'assistant',
+                        content: '抱歉，服务暂时不可用: ' + e.message,
+                        time: now
+                    };
+                }
+                this.chatSending = false;
+                this.$nextTick(() => this.scrollChatBottom());
+            },
+
+            async clearChat() {
+                this._stopTTS();
+                try { await fetch('/api/chat/history', { method: 'DELETE' }); } catch (e) { /* silent */ }
+                this.chatMessages = [
+                    { role: 'assistant', content: '对话已清空。有什么想聊的？', time: new Date().toISOString() }
+                ];
+            },
+
+            scrollChatBottom() {
+                const el = this.$refs.chatMessages;
+                if (el) el.scrollTop = el.scrollHeight;
+            },
+
+            formatTime(iso) {
+                try { return new Date(iso).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); }
+                catch (e) { return ''; }
+            },
+
+            // ===== 设置页 =====
+            async loadSettings() {
+                // Load profile
+                try {
+                    const [pRes, mRes, aRes] = await Promise.all([
+                        fetch('/api/settings/profile'),
+                        fetch('/api/settings/model'),
+                        fetch('/api/settings/apikeys')
+                    ]);
+                    const p = await pRes.json();
+                    const m = await mRes.json();
+                    const a = await aRes.json();
+                    if (!p.error) this.profileForm = { risk_preference: p.risk_preference, market_bias: p.market_bias, keywords: p.keywords || [] };
+                    if (!m.error) this.modelForm = { learning_rate: m.learning_rate, weights: m.weights };
+                    if (!a.error) this.apikeyForm = { kimi_api_key: a.kimi_api_key || '', tavily_api_key: a.tavily_api_key || '', serpapi_key: a.serpapi_key || '', deepseek_api_key: a.deepseek_api_key || '' };
+                } catch (e) { /* silent */ }
+            },
+
+            addKeyword() {
+                const kw = this.newKeyword.trim();
+                if (kw && !this.profileForm.keywords.includes(kw)) {
+                    this.profileForm.keywords.push(kw);
+                }
+                this.newKeyword = '';
+            },
+
+            async saveProfile() {
+                this.profileSaving = true;
+                try {
+                    await fetch('/api/settings/profile', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(this.profileForm)
+                    });
+                    this.profileSaved = true;
+                    this.showToast('用户偏好已保存');
+                    setTimeout(() => this.profileSaved = false, 2000);
+                } catch (e) { this.showToast('保存失败', 'error'); }
+                this.profileSaving = false;
+            },
+
+            async saveApiKeys() {
+                this.apikeySaving = true;
+                try {
+                    await fetch('/api/settings/apikeys', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(this.apikeyForm)
+                    });
+                    this.apikeySaved = true;
+                    this.showToast('API Key 已保存');
+                    setTimeout(() => this.apikeySaved = false, 2000);
+                } catch (e) { this.showToast('保存失败', 'error'); }
+                this.apikeySaving = false;
+            },
+
+            normalizeWeights() {
+                const w = this.modelForm.weights;
+                const total = Object.values(w).reduce((a, b) => a + parseFloat(b), 0);
+                if (total > 0) {
+                    for (const k in w) w[k] = Math.max(0.01, parseFloat((w[k] / total).toFixed(2)));
+                }
+            },
+
+            async saveModelParams() {
+                this.modelSaving = true;
+                this.normalizeWeights();
+                try {
+                    await fetch('/api/settings/model', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(this.modelForm)
+                    });
+                    this.modelSaved = true;
+                    this.showToast('模型参数已保存');
+                    setTimeout(() => this.modelSaved = false, 2000);
+                } catch (e) { this.showToast('保存失败', 'error'); }
+                this.modelSaving = false;
+            }
+        }));
+
+        // ===== 独立组件：市场快照（用于首页和市场页的信号条） =====
+        Alpine.data('marketSnapshot', () => ({
+            metrics: [
+                { name: '黄金期货', price: '--', change: null },
+                { name: '美元指数', price: '--', change: null },
+                { name: '美债10Y', price: '--', change: null },
+                { name: '原油', price: '--', change: null },
+                { name: '标普500', price: '--', change: null },
+                { name: 'VIX恐慌', price: '--', change: null },
+            ],
+            signals: [
+                { name: '美元', strength: 50, label: '--', barColor: 'bg-gray-300', textColor: 'text-gray-400' },
+                { name: '美债', strength: 50, label: '--', barColor: 'bg-gray-300', textColor: 'text-gray-400' },
+                { name: '原油', strength: 50, label: '--', barColor: 'bg-gray-300', textColor: 'text-gray-400' },
+                { name: 'VIX', strength: 50, label: '--', barColor: 'bg-gray-300', textColor: 'text-gray-400' },
+            ],
+
+            init() {
+                this.fetchSnapshot();
+                window.addEventListener('snapshot-updated', (e) => this.updateMetrics(e.detail));
+            },
+
+            async fetchSnapshot() {
+                try {
+                    const res = await fetch('/api/market_snapshot');
+                    const data = await res.json();
+                    if (!data.error) this.updateMetrics(data);
+                } catch (e) { /* silent */ }
+            },
+
+            updateMetrics(data) {
+                const map = { '黄金期货': 'gold', '美元指数': 'usd_index', '美债10Y': 'bond_yield', '原油': 'oil', '标普500': 'sp500', 'VIX恐慌': 'vix' };
+                this.metrics.forEach(m => {
+                    const key = map[m.name];
+                    if (key && data[key]) {
+                        m.price = data[key].price;
+                        m.change = data[key].change_pct;
+                    }
+                });
+                // Update signals based on USD/bond/oil/VIX
+                if (data.usd_index && data.usd_index.change_pct != null) {
+                    const chg = data.usd_index.change_pct;
+                    this.signals[0].strength = Math.min(100, Math.abs(chg) * 100);
+                    this.signals[0].label = chg > 0 ? '利空黄金' : '利多黄金';
+                    this.signals[0].barColor = chg > 0 ? 'bg-red-400' : 'bg-green-400';
+                    this.signals[0].textColor = chg > 0 ? 'text-red-500' : 'text-green-500';
+                }
+                if (data.bond_yield && data.bond_yield.change_pct != null) {
+                    const chg = data.bond_yield.change_pct;
+                    this.signals[1].strength = Math.min(100, Math.abs(chg) * 100);
+                    this.signals[1].label = chg > 0 ? '利空黄金' : '利多黄金';
+                    this.signals[1].barColor = chg > 0 ? 'bg-red-400' : 'bg-green-400';
+                    this.signals[1].textColor = chg > 0 ? 'text-red-500' : 'text-green-500';
+                }
+                if (data.oil && data.oil.change_pct != null) {
+                    const chg = data.oil.change_pct;
+                    this.signals[2].strength = Math.min(100, Math.abs(chg) * 100);
+                    this.signals[2].label = chg > 0 ? '利多黄金' : '利空黄金';
+                    this.signals[2].barColor = chg > 0 ? 'bg-green-400' : 'bg-red-400';
+                    this.signals[2].textColor = chg > 0 ? 'text-green-500' : 'text-red-500';
+                }
+                if (data.vix && data.vix.change_pct != null) {
+                    const chg = data.vix.change_pct;
+                    this.signals[3].strength = Math.min(100, Math.abs(chg) * 100);
+                    this.signals[3].label = chg > 0 ? '避险升温' : '风险偏好';
+                    this.signals[3].barColor = chg > 0 ? 'bg-red-400' : 'bg-green-400';
+                    this.signals[3].textColor = chg > 0 ? 'text-red-500' : 'text-green-500';
+                }
+            }
+        }));
+    });
+    </script>
+
+</body>
+</html>

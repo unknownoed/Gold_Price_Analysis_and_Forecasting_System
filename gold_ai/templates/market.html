@@ -1,0 +1,403 @@
+<!-- <!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>金价预测虚拟人助手 - 市场看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #1a1a1a; color: #fff; margin: 20px; }
+        #main-chart { width: 100%; height: 600px; background: #242424; border-radius: 8px; padding: 10px; }
+        h2 { text-align: center; color: #ffd700; }
+    </style>
+</head>
+<body>
+    <h2>🏆 黄金行情动态看板 (K线图)</h2>
+    <div id="main-chart"></div>
+
+    <script>
+        const chartDom = document.getElementById('main-chart');
+        const myChart = echarts.init(chartDom, 'dark');
+
+        // 从 Flask API 获取数据
+        fetch('/api/market_data')
+            .then(res => res.json())
+            .then(data => {
+                const option = {
+                    title: { text: '黄金期货 (GC=F) 与 美元指数 (DXY)', left: 'center' },
+                    tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+                    legend: { data: ['黄金K线', '美元指数'], bottom: 10 },
+                    grid: { left: '10%', right: '10%', bottom: '15%' },
+                    xAxis: { type: 'category', data: data.dates, scale: true },
+                    yAxis: [
+                        { type: 'value', scale: true, name: '金价 (USD)' },
+                        { type: 'value', scale: true, name: '美元指数', position: 'right' }
+                    ],
+                    series: [
+                        {
+                            name: '黄金K线',
+                            type: 'candlestick',
+                            data: data.gold_k.map(item => item.slice(1)), // 去掉日期只传数值
+                            itemStyle: {
+                                color: '#eb5454', color0: '#47b262',
+                                borderColor: '#eb5454', borderColor0: '#47b262'
+                            }
+                        },
+                        {
+                            name: '美元指数',
+                            type: 'line',
+                            yAxisIndex: 1, // 使用右侧 Y 轴
+                            data: data.usd_index,
+                            smooth: true,
+                            lineStyle: { color: '#5470c6', width: 2 }
+                        }
+                    ]
+                };
+                myChart.setOption(option);
+            });
+    </script>
+</body>
+</html> -->
+
+<!-- <!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>黄金K线</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', 'PingFang SC', sans-serif; 
+            background: #f5f7fa; 
+            padding: 24px 32px;
+        }
+        .card {
+            background: white;
+            border-radius: 20px;
+            border: 1px solid #edf2f7;
+            padding: 20px 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .card-header h3 { font-size: 1.1rem; font-weight: 600; color: #1e293b; }
+        .chart-box { height: 550px; width: 100%; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="card-header">
+            <h3><i class="fas fa-candlestick-chart"></i> 黄金期货 vs 美元指数</h3>
+        </div>
+        <div id="kline-chart" class="chart-box"></div>
+    </div>
+
+    <script>
+        let klineChart = null;
+        
+        async function fetchData() {
+            try {
+                const res = await fetch('/api/market_data');
+                const data = await res.json();
+                drawKlineChart(data);
+            } catch(e) {
+                console.error('获取数据失败:', e);
+            }
+        }
+        
+        function drawKlineChart(data) {
+            if (!klineChart) {
+                klineChart = echarts.init(document.getElementById('kline-chart'));
+            }
+            klineChart.setOption({
+                tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+                legend: { data: ['黄金K线', '美元指数'], bottom: 0, left: 'center' },
+                grid: { left: '10%', right: '12%', top: '10%', bottom: '12%' },
+                xAxis: { type: 'category', data: data.dates, axisLabel: { rotate: 30, fontSize: 10 } },
+                yAxis: [
+                    { type: 'value', name: '金价 (USD)', scale: true },
+                    { type: 'value', name: '美元指数', position: 'right', scale: true }
+                ],
+                series: [
+                    {
+                        name: '黄金K线',
+                        type: 'candlestick',
+                        data: data.gold_k.map(d => [d[1], d[2], d[3], d[4]]),
+                        itemStyle: {
+                            color: '#ef4444',
+                            color0: '#10b981',
+                            borderColor: '#ef4444',
+                            borderColor0: '#10b981'
+                        }
+                    },
+                    {
+                        name: '美元指数',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        data: data.usd_index,
+                        smooth: true,
+                        lineStyle: { color: '#3b82f6', width: 2 }
+                    }
+                ]
+            });
+            window.addEventListener('resize', () => klineChart.resize());
+        }
+        
+        fetchData();
+        setInterval(fetchData, 60000);
+    </script>
+</body>
+</html> -->
+
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>黄金K线</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', 'PingFang SC', sans-serif; 
+            background: #f5f7fa; 
+            padding: 24px 32px;
+        }
+        .card {
+            background: white;
+            border-radius: 20px;
+            border: 1px solid #edf2f7;
+            padding: 20px 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .card-header h3 { font-size: 1.1rem; font-weight: 600; color: #1e293b; }
+        .chart-box { height: 550px; width: 100%; }
+        .debug-info {
+            margin-top: 16px;
+            padding: 12px;
+            background: #fef9e6;
+            border-radius: 12px;
+            font-size: 12px;
+            color: #666;
+            display: none;
+        }
+        .error-msg {
+            color: #ef4444;
+            padding: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="card-header">
+            <h3><i class="fas fa-candlestick-chart"></i> 黄金期货 vs 美元指数</h3>
+        </div>
+        <div id="kline-chart" class="chart-box"></div>
+        <div id="debug-info" class="debug-info"></div>
+    </div>
+
+    <script>
+        let klineChart = null;
+        
+        async function fetchData() {
+            try {
+                console.log('正在请求 /api/market_data...');
+                const res = await fetch('/api/market_data');
+                const data = await res.json();
+                console.log('收到原始数据:', data);
+                
+                // 显示调试信息
+                const debugDiv = document.getElementById('debug-info');
+                debugDiv.style.display = 'block';
+                debugDiv.innerHTML = `
+                    <strong>📊 数据调试信息：</strong><br>
+                    日期数量: ${data.dates?.length || 0}<br>
+                    gold_k 类型: ${Array.isArray(data.gold_k) ? '数组' : typeof data.gold_k}<br>
+                    gold_k 长度: ${data.gold_k?.length || 0}<br>
+                    第一行 gold_k 示例: ${JSON.stringify(data.gold_k?.[0])}<br>
+                    usd_index 长度: ${data.usd_index?.length || 0}<br>
+                    第一行 usd_index: ${data.usd_index?.[0]}
+                `;
+                
+                // 处理数据格式
+                let processedKlineData = [];
+                let processedDates = data.dates || [];
+                
+                if (data.gold_k && Array.isArray(data.gold_k) && data.gold_k.length > 0) {
+                    // 检查 gold_k 第一项的格式
+                    const firstItem = data.gold_k[0];
+                    
+                    if (Array.isArray(firstItem)) {
+                        if (firstItem.length === 5) {
+                            // 格式: [日期, 开盘, 最高, 最低, 收盘]
+                            processedKlineData = data.gold_k.map(item => [item[1], item[2], item[3], item[4]]);
+                            if (!processedDates.length) {
+                                processedDates = data.gold_k.map(item => item[0]);
+                            }
+                        } else if (firstItem.length === 4) {
+                            // 格式: [开盘, 最高, 最低, 收盘]
+                            processedKlineData = data.gold_k;
+                        } else {
+                            console.error('未知的 gold_k 格式:', firstItem);
+                        }
+                    } else if (typeof firstItem === 'object' && firstItem.open !== undefined) {
+                        // 格式: {date, open, high, low, close}
+                        processedKlineData = data.gold_k.map(item => [item.open, item.high, item.low, item.close]);
+                        if (!processedDates.length) {
+                            processedDates = data.gold_k.map(item => item.date);
+                        }
+                    }
+                }
+                
+                console.log('处理后K线数据:', processedKlineData);
+                console.log('处理后日期:', processedDates);
+                
+                if (processedKlineData.length === 0) {
+                    throw new Error('没有有效的K线数据');
+                }
+                
+                drawKlineChart({
+                    dates: processedDates,
+                    gold_k: processedKlineData,
+                    usd_index: data.usd_index || []
+                });
+                
+            } catch(e) {
+                console.error('获取数据失败:', e);
+                const chartDom = document.getElementById('kline-chart');
+                chartDom.innerHTML = `<div class="error-msg">⚠️ 数据加载失败：${e.message}<br>请检查后端 /api/market_data 接口返回格式</div>`;
+            }
+        }
+        
+        function drawKlineChart(data) {
+            const chartDom = document.getElementById('kline-chart');
+            if (!klineChart) {
+                klineChart = echarts.init(chartDom);
+            }
+            
+            // 检查数据有效性
+            const hasValidKline = data.gold_k && data.gold_k.length > 0;
+            const hasValidUsd = data.usd_index && data.usd_index.length > 0;
+            
+            const series = [];
+            
+            if (hasValidKline) {
+                series.push({
+                    name: '黄金K线',
+                    type: 'candlestick',
+                    data: data.gold_k,
+                    itemStyle: {
+                        color: '#ef4444',      // 阳线（涨）红色
+                        color0: '#10b981',     // 阴线（跌）绿色
+                        borderColor: '#ef4444',
+                        borderColor0: '#10b981'
+                    },
+                    tooltip: {
+                        formatter: function(params) {
+                            const value = params.value;
+                            return `
+                                开盘: $${value[0]}<br>
+                                最高: $${value[1]}<br>
+                                最低: $${value[2]}<br>
+                                收盘: $${value[3]}
+                            `;
+                        }
+                    }
+                });
+            } else {
+                console.warn('没有K线数据');
+            }
+            
+            if (hasValidUsd) {
+                series.push({
+                    name: '美元指数',
+                    type: 'line',
+                    yAxisIndex: 1,
+                    data: data.usd_index,
+                    smooth: true,
+                    lineStyle: { color: '#3b82f6', width: 2 },
+                    symbol: 'circle',
+                    symbolSize: 4
+                });
+            }
+            
+            const option = {
+                title: {
+                    show: false
+                },
+                tooltip: { 
+                    trigger: 'axis', 
+                    axisPointer: { type: 'cross' } 
+                },
+                legend: { 
+                    data: series.map(s => s.name), 
+                    bottom: 0, 
+                    left: 'center' 
+                },
+                grid: { 
+                    left: '10%', 
+                    right: '12%', 
+                    top: '10%', 
+                    bottom: '12%' 
+                },
+                xAxis: { 
+                    type: 'category', 
+                    data: data.dates, 
+                    axisLabel: { rotate: 30, fontSize: 10 } 
+                },
+                yAxis: [
+                    { 
+                        type: 'value', 
+                        name: '金价 (USD)', 
+                        scale: true,
+                        axisLabel: { formatter: '${value}' }
+                    },
+                    { 
+                        type: 'value', 
+                        name: '美元指数', 
+                        position: 'right', 
+                        scale: true 
+                    }
+                ],
+                series: series,
+                // 如果没有K线数据，显示提示
+                graphic: !hasValidKline ? [{
+                    type: 'text',
+                    left: 'center',
+                    top: 'middle',
+                    style: {
+                        text: '暂无K线数据\n请检查后端数据格式',
+                        fill: '#999',
+                        fontSize: 14
+                    }
+                }] : []
+            };
+            
+            klineChart.setOption(option, true);
+            window.addEventListener('resize', () => klineChart.resize());
+        }
+        
+        // 页面加载时获取数据
+        fetchData();
+        // 每分钟自动刷新
+        setInterval(fetchData, 60000);
+    </script>
+</body>
+</html>

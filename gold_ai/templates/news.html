@@ -1,0 +1,252 @@
+<!-- <!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>实时财经快讯 - 金价预测系统</title>
+    <style>
+        :root { --gold: #ffd700; --bg: #121212; --card: #1e1e1e; }
+        body { background: var(--bg); color: #e0e0e0; font-family: 'PingFang SC', sans-serif; margin: 0; padding: 20px; }
+        .nav-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+        .back-btn { color: var(--gold); text-decoration: none; font-size: 0.9rem; border: 1px solid var(--gold); padding: 5px 15px; border-radius: 20px; }
+        
+        /* 分类过滤器样式 */
+        .filter-group { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .filter-btn { background: #333; border: none; color: #fff; padding: 6px 12px; border-radius: 4px; cursor: pointer; transition: 0.2s; }
+        .filter-btn.active { background: var(--gold); color: #000; font-weight: bold; }
+
+        /* 新闻列表样式 */
+        .news-container { max-width: 900px; margin: 0 auto; }
+        .news-card { background: var(--card); border-radius: 8px; padding: 15px; margin-bottom: 15px; position: relative; border-left: 4px solid #444; }
+        .news-card.important { border-left-color: #eb5454; background: #251a1a; }
+        .news-meta { font-size: 0.8rem; color: #888; display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .news-content { line-height: 1.6; font-size: 1rem; }
+        .tag { display: inline-block; background: #3d3d3d; color: var(--gold); font-size: 0.75rem; padding: 2px 8px; border-radius: 3px; margin-top: 10px; margin-right: 5px; }
+        
+        .empty-hint { text-align: center; color: #666; margin-top: 50px; }
+    </style>
+</head>
+<body>
+    <div class="nav-header">
+        <a href="/" class="back-btn">← 返回门户</a>
+        <h2 style="margin: 0;">📰 实时财经快讯</h2>
+        <div id="refresh-status" style="font-size: 0.8rem; color: #666;">自动刷新中...</div>
+    </div>
+
+    <div class="news-container">
+        <div class="filter-group" id="filter-group">
+            <button class="filter-btn active" onclick="filterNews('全部')">全部</button>
+            <button class="filter-btn" onclick="filterNews('地缘政治')">地缘政治</button>
+            <button class="filter-btn" onclick="filterNews('美联储_货币政策')">美联储</button>
+            <button class="filter-btn" onclick="filterNews('通胀数据')">通胀/CPI</button>
+            <button class="filter-btn" onclick="filterNews('市场情绪')">市场情绪</button>
+        </div>
+
+        <div id="news-list">加载中...</div>
+    </div>
+
+    <script>
+        let allNews = []; // 存储所有获取的新闻
+
+        async function fetchNews() {
+            try {
+                const response = await fetch('/api/news');
+                allNews = await response.json();
+                renderNews('全部'); // 默认展示全部内容
+                document.getElementById('refresh-status').innerText = `上次刷新: ${new Date().toLocaleTimeString()}`;
+            } catch (error) {
+                console.error("加载新闻失败:", error);
+                document.getElementById('news-list').innerHTML = "无法连接至新闻 API，请检查服务器运行状态。";
+            }
+        }
+
+        function renderNews(filterTag) {
+            const container = document.getElementById('news-list');
+            container.innerHTML = ''; // 清空列表
+
+            // 获取过滤后的内容
+            const filtered = filterTag === '全部' 
+                ? allNews 
+                : allNews.filter(n => n.categories.includes(filterTag));
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="empty-hint">当前分类下暂无金价相关快讯</div>';
+                return;
+            }
+
+            filtered.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `news-card ${item.important ? 'important' : ''}`;
+                
+                const tags = item.categories.map(c => `<span class="tag">${c}</span>`).join('');
+                
+                card.innerHTML = `
+                    <div class="news-meta">
+                        <span>${item.time}</span>
+                        <span>${item.important ? '⭐ 重要' : ''}</span>
+                    </div>
+                    <div class="news-content">${item.content}</div>
+                    <div class="tags-container">${tags}</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function filterNews(tag) {
+            // 处理按钮高亮
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.innerText === tag || (tag === '美联储_货币政策' && btn.innerText === '美联储')) {
+                    btn.classList.add('active');
+                }
+            });
+            renderNews(tag);
+        }
+
+        // 初始化并开启定时刷新
+        fetchNews();
+        setInterval(fetchNews, 60000); // 每一分钟请求一次
+    </script>
+</body>
+</html> -->
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>财经快讯</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', 'PingFang SC', sans-serif; 
+            background: #f5f7fa; 
+            padding: 24px 32px;
+        }
+        .card {
+            background: white;
+            border-radius: 20px;
+            border: 1px solid #edf2f7;
+            padding: 20px 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .card-header h3 { font-size: 1.1rem; font-weight: 600; color: #1e293b; }
+        
+        .filter-group { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .filter-btn {
+            background: #f3f4f6;
+            border: none;
+            padding: 6px 18px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: 0.2s;
+            color: #4b5563;
+        }
+        .filter-btn.active { background: #D4AF37; color: #1f2937; font-weight: 600; }
+        
+        .news-list { display: flex; flex-direction: column; gap: 14px; max-height: 600px; overflow-y: auto; }
+        .news-card {
+            background: #fafcff;
+            border-radius: 16px;
+            padding: 16px;
+            border-left: 4px solid #e2e8f0;
+        }
+        .news-card.important { border-left-color: #ef4444; background: #fffaf5; }
+        .news-meta { display: flex; justify-content: space-between; font-size: 0.7rem; color: #94a3b8; margin-bottom: 8px; }
+        .news-content { font-size: 0.9rem; line-height: 1.45; color: #1e293b; }
+        .tag {
+            display: inline-block;
+            background: #eef2ff;
+            font-size: 0.7rem;
+            padding: 2px 10px;
+            border-radius: 20px;
+            margin-top: 10px;
+            margin-right: 6px;
+            color: #2563eb;
+        }
+        .empty-hint { text-align: center; color: #94a3b8; padding: 40px; }
+        .refresh-btn {
+            background: #f3f4f6;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .refresh-btn:hover { background: #e5e7eb; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="card-header">
+            <h3><i class="fas fa-newspaper"></i> 金十数据 · 实时快讯</h3>
+            <button class="refresh-btn" onclick="refreshNews()"><i class="fas fa-sync-alt"></i> 刷新</button>
+        </div>
+        <div class="filter-group" id="filter-group">
+            <button class="filter-btn active" data-filter="全部">全部</button>
+            <button class="filter-btn" data-filter="地缘政治">地缘政治</button>
+            <button class="filter-btn" data-filter="美联储_货币政策">美联储</button>
+            <button class="filter-btn" data-filter="通胀数据">通胀/CPI</button>
+            <button class="filter-btn" data-filter="市场情绪">市场情绪</button>
+        </div>
+        <div id="news-list" class="news-list">加载中...</div>
+    </div>
+
+    <script>
+        let allNews = [];
+        
+        async function fetchNews() {
+            try {
+                const res = await fetch('/api/news');
+                allNews = await res.json();
+                renderNewsByFilter('全部');
+            } catch(e) {
+                document.getElementById('news-list').innerHTML = '<div class="empty-hint">新闻接口暂不可用</div>';
+            }
+        }
+        
+        function renderNewsByFilter(filterTag) {
+            const container = document.getElementById('news-list');
+            const filtered = filterTag === '全部' ? allNews : allNews.filter(n => n.categories.includes(filterTag));
+            
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="empty-hint">暂无相关快讯</div>';
+                return;
+            }
+            
+            container.innerHTML = filtered.map(item => `
+                <div class="news-card ${item.important ? 'important' : ''}">
+                    <div class="news-meta">
+                        <span>${item.time}</span>
+                        <span>${item.important ? '🔥 重要' : ''}</span>
+                    </div>
+                    <div class="news-content">${item.content}</div>
+                    <div>${item.categories.map(c => `<span class="tag">${c}</span>`).join('')}</div>
+                </div>
+            `).join('');
+        }
+        
+        function refreshNews() { fetchNews(); }
+        
+        document.getElementById('filter-group').addEventListener('click', (e) => {
+            if (e.target.classList.contains('filter-btn')) {
+                document.querySelectorAll('#filter-group .filter-btn').forEach(btn => btn.classList.remove('active'));
+                e.target.classList.add('active');
+                renderNewsByFilter(e.target.innerText);
+            }
+        });
+        
+        fetchNews();
+        setInterval(fetchNews, 60000);
+    </script>
+</body>
+</html>

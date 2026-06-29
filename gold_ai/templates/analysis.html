@@ -1,0 +1,227 @@
+<!-- <!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>AI 金融分析助理</title>
+    <style>
+        body { background: #121212; color: #fff; font-family: 'PingFang SC', sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        .nav { padding: 15px; background: #1e1e1e; border-bottom: 1px solid #333; }
+        .nav a { color: #ffd700; text-decoration: none; }
+        
+        /* 聊天记录区域 */
+        #chat-window { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .msg { max-width: 80%; padding: 12px 16px; border-radius: 15px; line-height: 1.5; font-size: 1rem; }
+        .user-msg { align-self: flex-end; background: #ffd700; color: #000; border-bottom-right-radius: 2px; }
+        .ai-msg { align-self: flex-start; background: #2a2a2a; border: 1px solid #444; border-bottom-left-radius: 2px; color: #e0e0e0; }
+
+        /* 底部输入框 */
+        .input-area { padding: 20px; background: #1e1e1e; display: flex; gap: 10px; border-top: 1px solid #333; }
+        input { flex: 1; background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 12px; border-radius: 8px; outline: none; }
+        button { background: #ffd700; color: #000; border: none; padding: 0 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        
+        .loading { font-style: italic; color: #888; font-size: 0.9rem; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="nav"><a href="/">← 返回系统门户</a></div>
+    
+    <div id="chat-window">
+        <div class="msg ai-msg">你好！我是你的虚拟金价分析师。基于实时 GDELT 地缘政治数据与金十财经快讯，你可以问我任何关于黄金趋势的问题。</div>
+    </div>
+
+    <div class="input-area">
+        <input type="text" id="user-input" placeholder="输入关于金价的问题，例如：最近金价为什么在波动？" onkeypress="if(event.keyCode==13) sendMessage()">
+        <button onclick="sendMessage()">发送</button>
+    </div>
+
+    <script>
+        function sendMessage() {
+            const input = document.getElementById('user-input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            // 1. 添加用户消息到界面
+            addMessage(message, 'user-msg');
+            input.value = '';
+
+            // 2. 显示加载状态
+            const loadingId = 'loading-' + Date.now();
+            addMessage('正在获取实时数据并分析...', 'ai-msg', loadingId);
+
+            // 3. 请求后端 API
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: message })
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById(loadingId).innerText = data.reply;
+                // 这里可以触发语音播报逻辑（如果你集成了前端播放）
+            })
+            .catch(() => {
+                document.getElementById(loadingId).innerText = "抱歉，分析服务暂时不可用。";
+            });
+        }
+
+        function addMessage(text, className, id = '') {
+            const win = document.getElementById('chat-window');
+            const div = document.createElement('div');
+            div.className = `msg ${className}`;
+            if (id) div.id = id;
+            div.innerText = text;
+            win.appendChild(div);
+            win.scrollTop = win.scrollHeight; // 滚动到底部
+        }
+    </script>
+</body>
+</html> -->
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI分析助理</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', 'PingFang SC', sans-serif; 
+            background: #f5f7fa; 
+            padding: 24px 32px;
+        }
+        .card {
+            background: white;
+            border-radius: 20px;
+            border: 1px solid #edf2f7;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            padding: 18px 24px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .card-header h3 { font-size: 1.1rem; font-weight: 600; color: #1e293b; }
+        .card-header i { margin-right: 10px; color: #D4AF37; }
+        
+        .chat-window {
+            height: 600px;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .msg {
+            max-width: 80%;
+            padding: 12px 18px;
+            border-radius: 24px;
+            line-height: 1.45;
+            font-size: 0.9rem;
+        }
+        .user-msg {
+            align-self: flex-end;
+            background: #D4AF37;
+            color: #1f2937;
+            border-bottom-right-radius: 6px;
+        }
+        .ai-msg {
+            align-self: flex-start;
+            background: #f1f5f9;
+            color: #1e293b;
+            border-bottom-left-radius: 6px;
+        }
+        .chat-input-area {
+            display: flex;
+            gap: 12px;
+            padding: 16px 20px;
+            background: white;
+            border-top: 1px solid #edf2f7;
+        }
+        .chat-input-area input {
+            flex: 1;
+            padding: 12px 18px;
+            border: 1px solid #e2e8f0;
+            border-radius: 40px;
+            outline: none;
+            font-size: 0.9rem;
+            font-family: inherit;
+        }
+        .chat-input-area input:focus { border-color: #D4AF37; }
+        .chat-input-area button {
+            background: #D4AF37;
+            border: none;
+            padding: 0 24px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .chat-input-area button:hover { background: #c4a030; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-brain fa-lg"></i>
+            <h3>虚拟金价分析师 · 实时地缘政治数据驱动</h3>
+        </div>
+        <div class="chat-window">
+            <div class="chat-messages" id="chat-messages">
+                <div class="msg ai-msg">你好！我是你的虚拟金价分析师。基于实时地缘政治数据与财经快讯，你可以问我任何关于黄金趋势的问题。</div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chat-input" placeholder="输入问题，例如：黄金为什么上涨？" onkeypress="if(event.keyCode===13) sendMessage()">
+                <button onclick="sendMessage()"><i class="fas fa-paper-plane"></i> 发送</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function addMessage(text, isUser, tempId = null) {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = `msg ${isUser ? 'user-msg' : 'ai-msg'}`;
+            if (tempId) div.id = tempId;
+            div.innerText = text;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            return div;
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+            
+            addMessage(msg, true);
+            input.value = '';
+            
+            const loadingId = 'loading-' + Date.now();
+            addMessage('🤔 正在调用实时地缘数据模型分析...', false, loadingId);
+            
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: msg })
+                });
+                const data = await res.json();
+                const loadingDiv = document.getElementById(loadingId);
+                if (loadingDiv) loadingDiv.innerText = data.reply || "分析完成，但未返回有效内容。";
+            } catch (e) {
+                const loadingDiv = document.getElementById(loadingId);
+                if (loadingDiv) loadingDiv.innerText = "⚠️ 分析服务暂时不可用，请稍后重试。";
+            }
+        }
+    </script>
+</body>
+</html>
